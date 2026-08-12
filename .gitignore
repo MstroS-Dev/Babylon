@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+site.db
+server/uploads/
+venv/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+.idea/
