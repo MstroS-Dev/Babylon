@@ -23,6 +23,8 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 init_db()
 
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
 
 # ---------- Live console (WebSocket) ----------
 
@@ -122,6 +124,15 @@ def list_workers(db: Session = Depends(get_db)):
 
 # ---------- Tasks ----------
 
+LOCATION_INSTRUCTIONS = {
+    # First line prepended to the translated message, per location_mode.
+    "pin": "Please go to the marked location on the building map.",
+    "gps": "Please go to the marked location. Your phone will confirm you've arrived.",
+    "photo_checkin": "Please go to the marked location and take a photo there before you begin. "
+                      "Wait for approval before starting the task.",
+}
+
+
 @app.post("/tasks")
 async def create_task(
     worker_id: str = Form(...),
@@ -129,32 +140,52 @@ async def create_task(
     description: str = Form(...),
     detailed_description: Optional[str] = Form(None),
     manager_lang: str = Form(MANAGER_LANGUAGE),
+    location_mode: str = Form("none"),          # 'none' | 'pin' | 'gps' | 'photo_checkin'
+    floor: Optional[str] = Form(None),
+    pin_x: Optional[str] = Form(None),
+    pin_y: Optional[str] = Form(None),
+    location_note: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
+    if location_mode not in ("none", "pin", "gps", "photo_checkin"):
+        raise HTTPException(400, "location_mode must be 'none', 'pin', 'gps', or 'photo_checkin'")
+
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(404, "Worker not found")
 
     task = Task(worker_id=worker_id, title=title, description=description,
-                detailed_description=detailed_description, status="assigned")
+                detailed_description=detailed_description, status="assigned",
+                location_mode=location_mode, floor=floor, pin_x=pin_x, pin_y=pin_y,
+                location_note=location_note)
     db.add(task)
     db.commit()
     db.refresh(task)
 
+    message_text = f"{title}\n{description}"
+    location_line = LOCATION_INSTRUCTIONS.get(location_mode)
+    if location_line and location_mode != "none":
+        note = f" ({location_note})" if location_note else ""
+        message_text = f"{location_line}{note}\n\n{message_text}"
+
     # App users translate on-device (ML Kit) - server just sends original text + a push notification.
     # WhatsApp users need server-side translation before sending.
     if worker.channel == "whatsapp":
-        translated = translate_text(f"{title}\n{description}", manager_lang, worker.language)
+        translated = translate_text(message_text, manager_lang, worker.language)
         send_whatsapp_message(worker.phone, translated)
         db.add(Message(worker_id=worker.id, direction="to_worker",
-                        original_text=f"{title}\n{description}", original_lang=manager_lang,
+                        original_text=message_text, original_lang=manager_lang,
                         translated_text=translated, translated_lang=worker.language))
         db.commit()
     else:
         # TODO: push notification to app via device_token (FCM), app translates locally.
         pass
 
-    await manager_console.broadcast({"type": "task_created", "task_id": task.id, "worker_id": worker.id})
+    await manager_console.broadcast({
+        "type": "task_created", "task_id": task.id, "worker_id": worker.id,
+        "floor": task.floor, "pin_x": task.pin_x, "pin_y": task.pin_y,
+        "location_mode": task.location_mode,
+    })
     return {"id": task.id, "status": task.status}
 
 
@@ -168,6 +199,9 @@ def list_tasks(db: Session = Depends(get_db)):
             "before_photo_urls": (t.before_photo_urls or "").split(",") if t.before_photo_urls else [],
             "after_photo_urls": (t.after_photo_urls or "").split(",") if t.after_photo_urls else [],
             "claude_review": t.claude_review,
+            "location_mode": t.location_mode, "floor": t.floor,
+            "pin_x": t.pin_x, "pin_y": t.pin_y, "location_note": t.location_note,
+            "checkin_photo_url": t.checkin_photo_url, "checkin_approved": t.checkin_approved,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "in_progress_at": t.in_progress_at.isoformat() if t.in_progress_at else None,
             "done_at": t.done_at.isoformat() if t.done_at else None,
@@ -230,6 +264,59 @@ async def upload_task_photo(
     return {"id": task.id, "status": task.status, "claude_review": task.claude_review}
 
 
+@app.post("/tasks/{task_id}/checkin")
+async def submit_checkin_photo(
+    task_id: str,
+    photo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Worker submits a photo of the pinned location, for location_mode='photo_checkin'.
+    Task stays 'assigned' until the manager approves it via /tasks/{id}/checkin/approve."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+
+    fname = f"{task_id}_checkin_{datetime.datetime.utcnow().timestamp()}_{photo.filename}"
+    path = os.path.join(UPLOAD_DIR, fname)
+    with open(path, "wb") as f:
+        shutil.copyfileobj(photo.file, f)
+    task.checkin_photo_url = f"/uploads/{fname}"
+    task.checkin_approved = None  # pending review
+    db.commit()
+    db.refresh(task)
+
+    await manager_console.broadcast({
+        "type": "checkin_submitted", "task_id": task.id,
+        "checkin_photo_url": task.checkin_photo_url,
+    })
+    return {"id": task.id, "checkin_photo_url": task.checkin_photo_url}
+
+
+@app.post("/tasks/{task_id}/checkin/approve")
+async def approve_checkin(
+    task_id: str,
+    approved: bool = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Manager approves or rejects a worker's location check-in photo."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+    task.checkin_approved = approved
+    db.commit()
+    db.refresh(task)
+
+    await manager_console.broadcast({
+        "type": "checkin_reviewed", "task_id": task.id, "checkin_approved": approved,
+    })
+    return {"id": task.id, "checkin_approved": approved}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Manager console (static frontend). Mounted last so it never shadows API routes above.
+os.makedirs(os.path.join(STATIC_DIR, "console"), exist_ok=True)
+app.mount("/console", StaticFiles(directory=os.path.join(STATIC_DIR, "console"), html=True), name="console")

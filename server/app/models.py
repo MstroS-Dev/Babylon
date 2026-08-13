@@ -42,6 +42,18 @@ class Task(Base):
 
     claude_review = Column(Text, nullable=True)  # AI suggestion text, filled after after-photos submitted
 
+    # Location, set from the manager console's building view.
+    # location_mode: 'none' (location doesn't matter), 'pin' (exact spot marked,
+    # shown to worker), 'gps' (live phone location tracked against the pin),
+    # 'photo_checkin' (worker must photograph the spot for approval before starting).
+    location_mode = Column(String, nullable=False, default="none")
+    floor = Column(String, nullable=True)          # e.g. "1", "2", "Roof"
+    pin_x = Column(String, nullable=True)           # normalized 0-1 position on the floor plate
+    pin_y = Column(String, nullable=True)
+    location_note = Column(Text, nullable=True)     # e.g. "north stairwell, by the electrical panel"
+    checkin_photo_url = Column(String, nullable=True)     # worker's photo_checkin submission
+    checkin_approved = Column(Boolean, nullable=True)     # manager's approval of the check-in photo
+
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     in_progress_at = Column(DateTime, nullable=True)
     done_at = Column(DateTime, nullable=True)
