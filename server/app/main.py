@@ -193,6 +193,7 @@ async def create_task(
             # (bad credentials, network issue, rate limit) must never block task
             # creation or hang the request.
             whatsapp_status = f"failed: {e}"
+            print(f"[whatsapp:ERROR] task={task.id} worker={worker.id} -> {e}")
     else:
         # TODO: push notification to app via device_token (FCM), app translates locally.
         pass
