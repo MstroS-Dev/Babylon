@@ -44,6 +44,23 @@ interface SiteCommsApi {
     @GET("tasks")
     suspend fun listTasks(): Response<List<TaskDto>>
 
+    @FormUrlEncoded
+    @POST("workers/{worker_id}/device_token")
+    suspend fun updateDeviceToken(
+        @Path("worker_id") workerId: String,
+        @Field("device_token") deviceToken: String,
+    ): Response<Unit>
+
+    @FormUrlEncoded
+    @POST("tasks/{task_id}/reply")
+    suspend fun sendReply(
+        @Path("task_id") taskId: String,
+        @Field("original_text") originalText: String,
+        @Field("original_lang") originalLang: String,
+        @Field("translated_text") translatedText: String,
+        @Field("translated_lang") translatedLang: String,
+    ): Response<Unit>
+
     @Multipart
     @POST("tasks/{task_id}/photo")
     suspend fun uploadTaskPhoto(

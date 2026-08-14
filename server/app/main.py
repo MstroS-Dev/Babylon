@@ -13,6 +13,7 @@ from .models import Worker, Task, Message
 from .translate import translate_text
 from .claude_review import review_task
 from .whatsapp import send_whatsapp_message
+from .push import send_task_push
 
 MANAGER_LANGUAGE = "he"  # your friend's default language, change as needed
 
@@ -97,6 +98,22 @@ async def register_app_worker(
                     "channel": worker.channel, "photo_url": worker.photo_url},
     })
     return {"id": worker.id, "name": worker.name}
+
+
+@app.post("/workers/{worker_id}/device_token")
+async def update_device_token(
+    worker_id: str,
+    device_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """App calls this whenever FCM hands it a fresh token (on first launch,
+    and any time the token rotates - FCM tokens aren't permanent)."""
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(404, "Worker not found")
+    worker.device_token = device_token
+    db.commit()
+    return {"id": worker.id, "device_token": worker.device_token}
 
 
 @app.post("/workers/whatsapp")
@@ -195,8 +212,11 @@ async def create_task(
             whatsapp_status = f"failed: {e}"
             print(f"[whatsapp:ERROR] task={task.id} worker={worker.id} -> {e}")
     else:
-        # TODO: push notification to app via device_token (FCM), app translates locally.
-        pass
+        try:
+            push_result = send_task_push(worker.device_token, task.id, title)
+            print(f"[push] task={task.id} worker={worker.id} -> {push_result}")
+        except Exception as e:
+            print(f"[push:ERROR] task={task.id} worker={worker.id} -> {e}")
 
     await manager_console.broadcast({
         "type": "task_created", "task_id": task.id, "worker_id": worker.id,
@@ -327,6 +347,39 @@ async def approve_checkin(
         "type": "checkin_reviewed", "task_id": task.id, "checkin_approved": approved,
     })
     return {"id": task.id, "checkin_approved": approved}
+
+
+@app.post("/tasks/{task_id}/reply")
+async def worker_reply(
+    task_id: str,
+    original_text: str = Form(...),      # what the worker actually said, in their language
+    original_lang: str = Form(...),
+    translated_text: str = Form(...),    # ML Kit's on-device translation to the manager's language
+    translated_lang: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Worker speaks a reply, phone runs speech-to-text, ML Kit translates it
+    back to the manager's language on-device, and this just delivers the
+    already-translated text to the console. Server does no translation work
+    for app workers - only WhatsApp workers need that server-side."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+
+    msg = Message(
+        worker_id=task.worker_id, direction="from_worker",
+        original_text=original_text, original_lang=original_lang,
+        translated_text=translated_text, translated_lang=translated_lang,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    await manager_console.broadcast({
+        "type": "worker_reply", "task_id": task.id, "worker_id": task.worker_id,
+        "text": translated_text, "original_text": original_text,
+    })
+    return {"id": msg.id, "translated_text": translated_text}
 
 
 @app.get("/health")
