@@ -27,10 +27,29 @@
     --danger:#ff4d5e;
     --app-color:#3ec6ff;
     --wa-color:#3ecf7e;
+    --stage-glow:#101823;
     --radius:10px;
     --font-display:'Space Grotesk', sans-serif;
     --font-body:'IBM Plex Sans', sans-serif;
     --font-mono:'IBM Plex Mono', monospace;
+  }
+  html[data-theme="light"]{
+    --bg:#f4f6f8;
+    --panel:#ffffff;
+    --panel-2:#eef1f5;
+    --border:#d6dde4;
+    --grid-line:#e2e8ee;
+    --text:#141a20;
+    --text-dim:#5c6b7a;
+    --text-faint:#96a3b0;
+    --accent:#ff6a1f;
+    --accent-dim:#ffcda6;
+    --accent-2:#b8790a;
+    --success:#1f9d5c;
+    --danger:#d9313f;
+    --app-color:#0080ab;
+    --wa-color:#1f9d5c;
+    --stage-glow:#e4e9ee;
   }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);overflow:hidden;}
@@ -81,7 +100,7 @@
 
   /* ---------- Building viewport ---------- */
   #stage{position:relative;overflow:hidden;background:
-    radial-gradient(ellipse at 30% 20%, #101823 0%, var(--bg) 60%);}
+    radial-gradient(ellipse at 30% 20%, var(--stage-glow) 0%, var(--bg) 60%);}
   #canvas-holder{position:absolute;inset:0;}
   #canvas-holder canvas{display:block;}
   #stage.drag-over #canvas-holder{outline:2px dashed var(--accent-dim);outline-offset:-2px;}
@@ -153,6 +172,9 @@
     font-size:12.5px;opacity:0;transition:all .25s;z-index:60;pointer-events:none;}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
+<script>
+  document.documentElement.dataset.theme = localStorage.getItem('babylon_theme') || 'dark';
+</script>
 </head>
 <body>
 <div id="app">
@@ -162,7 +184,12 @@
       <div class="name">BABYLON</div>
       <div class="sub">Site Console</div>
     </div>
-    <div id="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button id="theme-toggle" title="Switch theme" style="background:var(--panel-2);border:1px solid var(--border);
+        border-radius:20px;width:30px;height:30px;cursor:pointer;color:var(--text-dim);display:flex;
+        align-items:center;justify-content:center;font-size:14px;">☀︎</button>
+      <div id="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
+    </div>
   </div>
 
   <div id="crew">
@@ -226,6 +253,20 @@
 <div id="toast"></div>
 
 <script>
+// ---------------- Theme ----------------
+function applyThemeIcon(){
+  const isLight = document.documentElement.dataset.theme === 'light';
+  document.getElementById('theme-toggle').textContent = isLight ? '☾' : '☀︎';
+  document.getElementById('theme-toggle').title = isLight ? 'Switch to dark theme' : 'Switch to light theme (better in direct sun)';
+}
+document.getElementById('theme-toggle').addEventListener('click', ()=>{
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('babylon_theme', next);
+  applyThemeIcon();
+});
+applyThemeIcon();
+
 const API = ""; // same-origin
 const PERSON_SVG = '<svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>';
 
