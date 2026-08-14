@@ -16,7 +16,7 @@ read by workers in a second language, sometimes aloud via text-to-speech.
 import os
 from anthropic import Anthropic
 
-client = Anthropic()  # reads ANTHROPIC_API_KEY from environment
+client = Anthropic(timeout=15.0)  # reads ANTHROPIC_API_KEY from environment
 
 LANGUAGE_NAMES = {
     "en": "English",

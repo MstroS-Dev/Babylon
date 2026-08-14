@@ -25,7 +25,9 @@ def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
         return {"status": "dev_mode_logged"}
 
     from twilio.rest import Client
-    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    from twilio.http.http_client import TwilioHttpClient
+    http_client = TwilioHttpClient(timeout=15)
+    client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, http_client=http_client)
     kwargs = {"from_": TWILIO_WHATSAPP_FROM, "to": f"whatsapp:{to_phone}", "body": text}
     if media_url:
         kwargs["media_url"] = [media_url]

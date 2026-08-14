@@ -1,6 +1,7 @@
 import os
 import shutil
 import datetime
+import asyncio
 from typing import List, Optional
 
 from fastapi import FastAPI, Depends, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException
@@ -170,13 +171,28 @@ async def create_task(
 
     # App users translate on-device (ML Kit) - server just sends original text + a push notification.
     # WhatsApp users need server-side translation before sending.
+    whatsapp_status = None
     if worker.channel == "whatsapp":
-        translated = translate_text(message_text, manager_lang, worker.language)
-        send_whatsapp_message(worker.phone, translated)
-        db.add(Message(worker_id=worker.id, direction="to_worker",
-                        original_text=message_text, original_lang=manager_lang,
-                        translated_text=translated, translated_lang=worker.language))
-        db.commit()
+        try:
+            def _translate_and_send():
+                translated = translate_text(message_text, manager_lang, worker.language)
+                result = send_whatsapp_message(worker.phone, translated)
+                return translated, result
+            translated, result = await asyncio.wait_for(
+                asyncio.to_thread(_translate_and_send), timeout=25.0
+            )
+            db.add(Message(worker_id=worker.id, direction="to_worker",
+                            original_text=message_text, original_lang=manager_lang,
+                            translated_text=translated, translated_lang=worker.language))
+            db.commit()
+            whatsapp_status = result.get("status")
+        except asyncio.TimeoutError:
+            whatsapp_status = "timed_out"
+        except Exception as e:
+            # Task itself is already saved above — a translation/WhatsApp failure
+            # (bad credentials, network issue, rate limit) must never block task
+            # creation or hang the request.
+            whatsapp_status = f"failed: {e}"
     else:
         # TODO: push notification to app via device_token (FCM), app translates locally.
         pass
@@ -186,7 +202,7 @@ async def create_task(
         "floor": task.floor, "pin_x": task.pin_x, "pin_y": task.pin_y,
         "location_mode": task.location_mode,
     })
-    return {"id": task.id, "status": task.status}
+    return {"id": task.id, "status": task.status, "whatsapp_status": whatsapp_status}
 
 
 @app.get("/tasks")
