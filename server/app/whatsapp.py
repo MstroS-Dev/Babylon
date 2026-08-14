@@ -6,12 +6,27 @@ TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM as environment variables
 once you've set up a Twilio account (or swap this for another provider).
 
 This is a stub — send_whatsapp_message just needs real credentials to go live.
+
+IMPORTANT — WhatsApp template requirement:
+WhatsApp only allows plain freeform text within 24h of the worker's last
+inbound message ("session message"). Since this app is manager-initiated
+(assigning tasks, not replying), most sends are "business-initiated" and
+WhatsApp requires a pre-approved message Content Template instead of plain
+text, or Twilio rejects it with "ContentSid Required".
+
+To fix: create a WhatsApp Content Template in Twilio Console -> Messaging ->
+Content Template Builder (a simple one like "New task from your site manager:
+\\n\\n{{1}}" works well), submit it for WhatsApp approval, then set
+TWILIO_CONTENT_SID to its SID (starts with HX...) as an env var. Once set,
+this module sends via that template automatically.
 """
 import os
+import json
 
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
 TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM")  # e.g. 'whatsapp:+14155238886'
+TWILIO_CONTENT_SID = os.environ.get("TWILIO_CONTENT_SID")      # e.g. 'HX...', optional
 
 
 def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
@@ -19,6 +34,10 @@ def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
     Sends a WhatsApp message via Twilio. Falls back to a console log if
     credentials aren't configured yet, so the rest of the app still runs
     during development.
+
+    If TWILIO_CONTENT_SID is set, sends via that approved template (required
+    for business-initiated messages). Otherwise sends plain body text, which
+    only works as a reply within 24h of the worker's last inbound message.
     """
     if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM):
         print(f"[whatsapp:DEV MODE] to={to_phone} text={text!r} media={media_url}")
@@ -28,8 +47,15 @@ def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
     from twilio.http.http_client import TwilioHttpClient
     http_client = TwilioHttpClient(timeout=15)
     client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, http_client=http_client)
-    kwargs = {"from_": TWILIO_WHATSAPP_FROM, "to": f"whatsapp:{to_phone}", "body": text}
-    if media_url:
-        kwargs["media_url"] = [media_url]
+
+    kwargs = {"from_": TWILIO_WHATSAPP_FROM, "to": f"whatsapp:{to_phone}"}
+    if TWILIO_CONTENT_SID:
+        kwargs["content_sid"] = TWILIO_CONTENT_SID
+        kwargs["content_variables"] = json.dumps({"1": text})
+    else:
+        kwargs["body"] = text
+        if media_url:
+            kwargs["media_url"] = [media_url]
+
     message = client.messages.create(**kwargs)
     return {"status": "sent", "sid": message.sid}
