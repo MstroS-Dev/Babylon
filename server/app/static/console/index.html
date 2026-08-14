@@ -676,7 +676,14 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
   try{
     const r = await fetch(API + '/tasks', {method:'POST', body:fd});
     if(!r.ok) throw new Error(await r.text());
-    toast('Task created for ' + modalWorker.name);
+    const result = await r.json();
+    if(result.whatsapp_status === 'sent'){
+      toast('Task created and sent to ' + modalWorker.name + ' on WhatsApp');
+    } else if(result.whatsapp_status && result.whatsapp_status !== 'sent'){
+      toast('Task created, but WhatsApp delivery failed (' + result.whatsapp_status.slice(0,60) + ')');
+    } else {
+      toast('Task created for ' + modalWorker.name);
+    }
     closeModal();
     loadTasks();
   }catch(e){
