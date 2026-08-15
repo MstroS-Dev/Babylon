@@ -31,11 +31,22 @@ class TaskDetailActivity : AppCompatActivity() {
     private lateinit var taskId: String
     private var pendingStage: String = "before"
     private var photoUri: Uri? = null
+    private var photoFile: File? = null   // real File - uri.path is not a filesystem path for content:// URIs
     private lateinit var workerLang: String
     private var replyTranslator: OnDeviceTranslator? = null
 
     private val takePicture = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) photoUri?.let { uploadPhoto(pendingStage, it) }
+        if (success) {
+            photoFile?.let { uploadPhoto(pendingStage, it) }
+        } else {
+            binding.detailStatus.text = "Photo capture cancelled or failed"
+        }
+    }
+
+    private val requestCameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera(pendingStage) else {
+            binding.detailStatus.text = "Camera permission is needed to take the $pendingStage photo"
+        }
     }
 
     private val speechRecognizer = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -127,18 +138,28 @@ class TaskDetailActivity : AppCompatActivity() {
 
     private fun capturePhoto(stage: String) {
         pendingStage = stage
-        val photoFile = File(cacheDir, "task_${taskId}_${stage}_${System.currentTimeMillis()}.jpg")
+        val hasCamera = ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (hasCamera) launchCamera(stage) else requestCameraPermission.launch(android.Manifest.permission.CAMERA)
+    }
+
+    private fun launchCamera(stage: String) {
+        val file = File(cacheDir, "task_${taskId}_${stage}_${System.currentTimeMillis()}.jpg")
+        photoFile = file
         photoUri = androidx.core.content.FileProvider.getUriForFile(
-            this, "$packageName.fileprovider", photoFile
+            this, "$packageName.fileprovider", file
         )
         takePicture.launch(photoUri)
     }
 
-    private fun uploadPhoto(stage: String, uri: Uri) {
+    private fun uploadPhoto(stage: String, file: File) {
+        if (!file.exists()) {
+            binding.detailStatus.text = "Photo file went missing - try again"
+            return
+        }
         scope.launch(Dispatchers.IO) {
             try {
                 val api = SiteCommsApi.create()
-                val file = File(uri.path ?: return@launch)
                 val body = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("photos", file.name, body)
                 val stagePart = stage.toRequestBody("text/plain".toMediaTypeOrNull())
@@ -149,8 +170,10 @@ class TaskDetailActivity : AppCompatActivity() {
                         binding.detailStatus.text = response.body()?.status
                     }
                 }
-            } catch (_: Exception) {
-                // TODO: surface upload failure + retry to the worker
+            } catch (e: Exception) {
+                launch(Dispatchers.Main) {
+                    binding.detailStatus.text = "Photo upload failed: ${e.message} - tap the button to retry"
+                }
             }
         }
     }
