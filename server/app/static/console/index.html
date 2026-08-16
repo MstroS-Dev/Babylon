@@ -95,6 +95,11 @@
   .quick-add{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);background:transparent;
     color:var(--text-dim);font-size:15px;line-height:1;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;}
   .quick-add:hover{border-color:var(--accent);color:var(--accent);}
+  .remove-worker{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);background:transparent;
+    color:var(--text-faint);font-size:13px;line-height:1;cursor:pointer;flex:none;display:flex;align-items:center;
+    justify-content:center;opacity:0;transition:opacity .15s, border-color .15s, color .15s;}
+  .worker-card:hover .remove-worker{opacity:1;}
+  .remove-worker:hover{border-color:var(--danger);color:var(--danger);}
   #crew-empty{padding:20px 6px;color:var(--text-faint);font-size:12px;line-height:1.5;}
   #crew-foot{padding:12px 16px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);}
 
@@ -445,7 +450,8 @@ function renderCrew(){
         <div class="w-name">${escapeHtml(w.name)}</div>
         <div class="w-meta">${w.language} · ${w.channel}</div>
       </div>
-      <button class="quick-add" title="Assign task without a location">+</button>`;
+      <button class="quick-add" title="Assign task without a location">+</button>
+      <button class="remove-worker" title="Remove worker">&#10005;</button>`;
 
     let dragStarted = false;
     card.addEventListener('dragstart', e=>{
@@ -460,7 +466,7 @@ function renderCrew(){
       setTimeout(()=>{ dragStarted = false; }, 50);
     });
     card.addEventListener('click', (e)=>{
-      if(e.target.closest('.quick-add')) return;
+      if(e.target.closest('.quick-add') || e.target.closest('.remove-worker')) return;
       if(dragStarted) return;
       openTaskPanel(w);
     });
@@ -468,6 +474,21 @@ function renderCrew(){
       e.stopPropagation();
       pendingPlacement = null;
       openModal(w, 'none');
+    });
+    card.querySelector('.remove-worker').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm(`Remove ${w.name}? This also deletes their task history.`)) return;
+      try{
+        const r = await fetch(API + '/workers/' + w.id, { method: 'DELETE' });
+        if(!r.ok) throw new Error(await r.text());
+        if(openPanelWorkerId === w.id) closeTaskPanel();
+        toast('Removed ' + w.name);
+        loadWorkers();
+        loadTasks();
+      }catch(err){
+        console.error(err);
+        toast('Could not remove worker');
+      }
     });
     card.addEventListener('mouseenter', ()=> showWorkerTooltip(card, w));
     card.addEventListener('mousemove', (e)=> positionTooltip(e));
@@ -569,6 +590,7 @@ function connectWs(){
   ws.onmessage = (evt)=>{
     const msg = JSON.parse(evt.data);
     if(msg.type === 'worker_registered'){ loadWorkers(); }
+    if(msg.type === 'worker_removed'){ if(openPanelWorkerId === msg.worker_id) closeTaskPanel(); loadWorkers(); loadTasks(); }
     if(msg.type === 'task_created'){ loadWorkers(); loadTasks(); if(msg.floor) placePinFromTask(msg); toast('Task assigned'); }
     if(msg.type === 'task_updated'){ loadTasks(); toast('Task status: ' + msg.status); }
     if(msg.type === 'checkin_submitted'){ loadTasks(); toast('Check-in photo submitted — review needed'); }

@@ -140,6 +140,19 @@ def list_workers(db: Session = Depends(get_db)):
     ]
 
 
+@app.delete("/workers/{worker_id}")
+async def delete_worker(worker_id: str, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(404, "Worker not found")
+    name = worker.name
+    db.query(Task).filter(Task.worker_id == worker_id).delete()
+    db.delete(worker)
+    db.commit()
+    await manager_console.broadcast({"type": "worker_removed", "worker_id": worker_id, "name": name})
+    return {"ok": True, "id": worker_id}
+
+
 # ---------- Tasks ----------
 
 LOCATION_INSTRUCTIONS = {
