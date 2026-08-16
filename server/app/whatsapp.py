@@ -50,8 +50,17 @@ def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
 
     kwargs = {"from_": TWILIO_WHATSAPP_FROM, "to": f"whatsapp:{to_phone}"}
     if TWILIO_CONTENT_SID:
+        # Twilio WhatsApp Content Template variables are capped at 1024
+        # characters. Going over silently produces a generic 400
+        # "Content Variables parameter is invalid" error with no length
+        # hint, so we guard and log here rather than let it fail blind.
+        var_text = text
+        if len(var_text) > 1024:
+            print(f"[whatsapp:WARN] content variable too long ({len(var_text)} chars), truncating to 1024")
+            var_text = var_text[:1000].rsplit(" ", 1)[0] + "\u2026"
         kwargs["content_sid"] = TWILIO_CONTENT_SID
-        kwargs["content_variables"] = json.dumps({"1": text})
+        kwargs["content_variables"] = json.dumps({"1": var_text})
+        print(f"[whatsapp:DEBUG] content_variables length={len(var_text)} preview={var_text[:80]!r}")
     else:
         kwargs["body"] = text
         if media_url:

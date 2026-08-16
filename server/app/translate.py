@@ -28,7 +28,25 @@ LANGUAGE_NAMES = {
     "ar": "Arabic",
     "th": "Thai",
     "tl": "Tagalog",
+    "ru": "Russian",
+    "uz": "Uzbek",
+    "si": "Sinhala",
 }
+
+# The console's "add WhatsApp worker" form stores full language words
+# (e.g. "hebrew", "uzbek") rather than ISO codes, while workers created
+# elsewhere may use 2-letter codes. Accept either so translation always
+# gets a real language name instead of falling back to the raw string.
+_FULL_NAME_ALIASES = {name.lower(): name for name in LANGUAGE_NAMES.values()}
+
+
+def _resolve_language_name(lang: str) -> str:
+    if not lang:
+        return lang
+    key = lang.strip().lower()
+    if key in _FULL_NAME_ALIASES:
+        return _FULL_NAME_ALIASES[key]
+    return LANGUAGE_NAMES.get(lang, lang.capitalize())
 
 PLAIN_LANGUAGE_RULES = (
     "Rules for the translation:\n"
@@ -48,8 +66,8 @@ def translate_text(text: str, source_lang: str, target_lang: str) -> str:
     if source_lang == target_lang:
         return _plain_language_pass(text, source_lang)
 
-    source_name = LANGUAGE_NAMES.get(source_lang, source_lang)
-    target_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+    source_name = _resolve_language_name(source_lang)
+    target_name = _resolve_language_name(target_lang)
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
@@ -71,7 +89,7 @@ def translate_text(text: str, source_lang: str, target_lang: str) -> str:
 def _plain_language_pass(text: str, lang: str) -> str:
     """Used when source and target language are the same (e.g. manager
     reviewing his own message) — still cleans up tone and simplifies wording."""
-    lang_name = LANGUAGE_NAMES.get(lang, lang)
+    lang_name = _resolve_language_name(lang)
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
