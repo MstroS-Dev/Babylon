@@ -40,4 +40,19 @@
         android:layout_marginTop="16dp"
         android:text="Take After Photo (mark done)" />
 
+    <Button
+        android:id="@+id/replyButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="🎤 Reply with your voice" />
+
+    <TextView
+        android:id="@+id/replyStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="#666666"
+        android:textSize="14sp" />
+
 </LinearLayout>

@@ -51,6 +51,24 @@ class TaskListActivity : AppCompatActivity() {
 
         binding.swipeRefresh.setOnRefreshListener { loadTasks(workerId) }
         loadTasks(workerId)
+        registerDeviceTokenIfAvailable(workerId)
+    }
+
+    /**
+     * Sends the FCM token to the server so it can push new-task notifications.
+     * No-ops until Firebase is wired into the app (see push.py on the server
+     * for setup steps) - FirebaseMessaging.getInstance() isn't on the
+     * classpath yet, so this is the drop-in point for that call once it is.
+     */
+    private fun registerDeviceTokenIfAvailable(workerId: String) {
+        // TODO: once google-services.json is added and the Firebase Messaging
+        // dependency is uncommented in build.gradle.kts, replace this with:
+        //
+        // FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+        //     scope.launch(Dispatchers.IO) {
+        //         runCatching { SiteCommsApi.create().updateDeviceToken(workerId, token) }
+        //     }
+        // }
     }
 
     private fun loadTasks(workerId: String) {

@@ -5,3 +5,4 @@ python-multipart
 anthropic
 websockets
 twilio
+google-auth
