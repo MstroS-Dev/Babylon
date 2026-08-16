@@ -50,14 +50,23 @@ def _resolve_language_name(lang: str) -> str:
 
 PLAIN_LANGUAGE_RULES = (
     "Rules for the translation:\n"
-    "1. Use simple, everyday words. Avoid idioms, slang, and technical jargon "
-    "unless it's a necessary construction term (e.g. 'cement', 'rebar').\n"
-    "2. Keep sentences short and direct, like clear spoken instructions.\n"
-    "3. Remove or neutralize any profanity, insults, or harsh tone from the "
-    "original message — translate the instruction, not the attitude.\n"
-    "4. Do not add extra commentary, greetings, or explanations — translate "
+    "1. Translate what was actually said, as literally and faithfully as "
+    "the two languages allow. Do NOT guess at a 'probably intended' meaning, "
+    "substitute a specific tool/object/term you think the person meant, or "
+    "resolve ambiguity on their behalf. If a phrase is slang, unclear, or "
+    "odd, translate it as directly as possible rather than reinterpreting it "
+    "into something that seems more sensible.\n"
+    "2. Use simple, everyday words. Avoid idioms, slang, and technical jargon "
+    "unless it's a necessary construction term (e.g. 'cement', 'rebar') that "
+    "was already present in the original message.\n"
+    "3. Keep sentences short and direct, like clear spoken instructions.\n"
+    "4. Remove or neutralize any profanity, insults, or harsh tone from the "
+    "original message — translate the instruction, not the attitude. This is "
+    "the ONLY case where you may adjust the words rather than translate them "
+    "directly.\n"
+    "5. Do not add extra commentary, greetings, or explanations — translate "
     "only the instruction itself.\n"
-    "5. The result should sound natural and polite when read aloud by a "
+    "6. The result should sound natural and polite when read aloud by a "
     "text-to-speech engine to a worker on a construction site."
 )
 
@@ -76,7 +85,10 @@ def translate_text(text: str, source_lang: str, target_lang: str) -> str:
             "role": "user",
             "content": (
                 f"Translate the following construction site instruction from "
-                f"{source_name} to {target_name}.\n\n"
+                f"{source_name} to {target_name}. Prioritize faithfulness to "
+                f"exactly what was written over making it sound natural or "
+                f"sensible — do not correct, reinterpret, or 'fix' anything "
+                f"that seems odd or ambiguous in the original.\n\n"
                 f"{PLAIN_LANGUAGE_RULES}\n\n"
                 f"Reply with ONLY the translation, nothing else.\n\n"
                 f"Text: {text}"
