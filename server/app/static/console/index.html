@@ -171,6 +171,62 @@
     border:1px solid var(--border);border-left:3px solid var(--success);padding:10px 16px;border-radius:8px;
     font-size:12.5px;opacity:0;transition:all .25s;z-index:60;pointer-events:none;}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ---------- Add worker ---------- */
+  #add-worker-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);
+    color:var(--accent);font-size:19px;line-height:1;cursor:pointer;flex:none;display:flex;align-items:center;
+    justify-content:center;font-weight:600;}
+  #add-worker-btn:hover{border-color:var(--accent);background:rgba(255,106,31,.08);}
+  #crew-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+
+  /* ---------- Worker hover tooltip (current task) ---------- */
+  .w-tooltip{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:9px 12px;font-size:12px;line-height:1.4;max-width:240px;box-shadow:0 6px 20px rgba(0,0,0,.35);
+    pointer-events:none;opacity:0;transition:opacity .12s;}
+  .w-tooltip.show{opacity:1;}
+  .w-tooltip .tt-label{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:3px;}
+  .w-tooltip .tt-title{font-weight:600;color:var(--text);margin-bottom:2px;}
+  .w-tooltip .tt-time{color:var(--text-dim);font-size:11px;}
+
+  /* ---------- Task history side panel ---------- */
+  #task-panel{position:fixed;top:56px;right:0;bottom:0;width:340px;background:var(--panel);
+    border-left:1px solid var(--border);transform:translateX(100%);transition:transform .22s ease;z-index:55;
+    display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.25);}
+  #task-panel.open{transform:translateX(0);}
+  #task-panel-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    justify-content:space-between;gap:10px;}
+  #task-panel-head .t1{font-family:var(--font-display);font-weight:700;font-size:14px;}
+  #task-panel-head .t2{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);margin-top:2px;}
+  #task-panel-close{background:transparent;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;
+    color:var(--text-dim);cursor:pointer;font-size:14px;flex:none;}
+  #task-panel-close:hover{color:var(--text);border-color:var(--accent);}
+  #task-panel-list{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  #task-panel-list::-webkit-scrollbar{width:6px;}
+  #task-panel-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  #task-panel-empty{padding:20px 6px;color:var(--text-faint);font-size:12px;line-height:1.5;}
+  .task-row{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;position:relative;}
+  .task-row .tr-title{font-weight:600;font-size:12.5px;margin-bottom:3px;}
+  .task-row .tr-desc{font-size:11.5px;color:var(--text-dim);line-height:1.4;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:default;}
+  .task-row .tr-meta{display:flex;align-items:center;justify-content:space-between;margin-top:6px;
+    font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;}
+  .task-row .tr-status{padding:2px 7px;border-radius:20px;border:1px solid var(--border);}
+  .task-row .tr-status.done{color:var(--success);border-color:var(--success);}
+  .task-row .tr-status.in_progress{color:var(--accent-2);border-color:var(--accent-2);}
+
+  /* ---------- Add worker modal ---------- */
+  #aw-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:80;}
+  #aw-overlay.open{display:flex;}
+  #aw-modal{width:320px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;}
+  #aw-modal h2{font-family:var(--font-display);font-size:15px;margin:0 0 4px;}
+  #aw-modal p{font-size:11.5px;color:var(--text-dim);margin:0 0 16px;}
+  #aw-modal label{display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-faint);
+    text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:12px;}
+  #aw-modal input,#aw-modal select{width:100%;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:7px;padding:9px 10px;color:var(--text);font-family:var(--font-body);font-size:13px;}
+  #aw-modal input:focus,#aw-modal select:focus{outline:none;border-color:var(--accent);}
+  #aw-foot{display:flex;gap:10px;margin-top:18px;}
 </style>
 <script>
   document.documentElement.dataset.theme = localStorage.getItem('babylon_theme') || 'dark';
@@ -199,7 +255,7 @@
       <p>Drag a worker onto the building to pin their next task. Tap + for a task with no fixed location.</p>
     </div>
     <div id="crew-list"><div id="crew-empty">No workers registered yet.</div></div>
-    <div id="crew-foot"><span id="crew-count">0 workers</span></div>
+    <div id="crew-foot"><span id="crew-count">0 workers</span><button id="add-worker-btn" title="Add WhatsApp worker">+</button></div>
   </div>
 
   <div id="stage">
@@ -250,6 +306,43 @@
   </div>
 </div>
 
+<div id="task-panel">
+  <div id="task-panel-head">
+    <div>
+      <div class="t1" id="task-panel-name">Worker</div>
+      <div class="t2" id="task-panel-sub">0 tasks</div>
+    </div>
+    <button id="task-panel-close" title="Close">&#10005;</button>
+  </div>
+  <div id="task-panel-list"><div id="task-panel-empty">No tasks yet.</div></div>
+</div>
+
+<div id="aw-overlay">
+  <div id="aw-modal">
+    <h2>Add WhatsApp worker</h2>
+    <p>For workers who don&#39;t use the app &mdash; messages are sent straight to WhatsApp.</p>
+    <label for="aw-name">Name</label>
+    <input id="aw-name" type="text" placeholder="Full name">
+    <label for="aw-phone">Phone number</label>
+    <input id="aw-phone" type="text" placeholder="e.g. +972501234567">
+    <label for="aw-lang">Language</label>
+    <select id="aw-lang">
+      <option value="hebrew">Hebrew</option>
+      <option value="english">English</option>
+      <option value="arabic">Arabic</option>
+      <option value="russian">Russian</option>
+      <option value="chinese">Chinese</option>
+      <option value="thai">Thai</option>
+    </select>
+    <div id="aw-foot">
+      <button class="btn btn-ghost" id="aw-cancel">Cancel</button>
+      <button class="btn btn-primary" id="aw-submit">Add worker</button>
+    </div>
+  </div>
+</div>
+
+<div class="w-tooltip" id="w-tooltip"></div>
+
 <div id="toast"></div>
 
 <script>
@@ -267,6 +360,47 @@ document.getElementById('theme-toggle').addEventListener('click', ()=>{
 });
 applyThemeIcon();
 
+// ---------------- Task panel close ----------------
+document.getElementById('task-panel-close').addEventListener('click', closeTaskPanel);
+
+// ---------------- Add WhatsApp worker ----------------
+document.getElementById('add-worker-btn').addEventListener('click', ()=>{
+  document.getElementById('aw-name').value = '';
+  document.getElementById('aw-phone').value = '';
+  document.getElementById('aw-lang').value = 'hebrew';
+  document.getElementById('aw-overlay').classList.add('open');
+});
+document.getElementById('aw-cancel').addEventListener('click', ()=>{
+  document.getElementById('aw-overlay').classList.remove('open');
+});
+document.getElementById('aw-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'aw-overlay') document.getElementById('aw-overlay').classList.remove('open');
+});
+document.getElementById('aw-submit').addEventListener('click', async ()=>{
+  const name = document.getElementById('aw-name').value.trim();
+  const phone = document.getElementById('aw-phone').value.trim();
+  const language = document.getElementById('aw-lang').value;
+  if(!name || !phone){ toast('Name and phone are required'); return; }
+  const btn = document.getElementById('aw-submit');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try{
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('phone', phone);
+    fd.append('language', language);
+    const r = await fetch(API + '/workers/whatsapp', { method: 'POST', body: fd });
+    if(!r.ok) throw new Error(await r.text());
+    document.getElementById('aw-overlay').classList.remove('open');
+    toast('Worker added · ' + name);
+    loadWorkers();
+  }catch(e){
+    console.error(e);
+    toast('Could not add worker');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Add worker';
+  }
+});
+
 const API = ""; // same-origin
 const PERSON_SVG = '<svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>';
 
@@ -275,6 +409,8 @@ let floors = JSON.parse(localStorage.getItem('babylon_floors') || 'null') || ["G
 let selectedFloorIdx = 0;
 let pendingPlacement = null; // {workerId, floorIdx, x, y}
 let dragWorker = null;
+let allTasks = [];
+let openPanelWorkerId = null;
 
 // ---------------- Toast ----------------
 function toast(msg){
@@ -307,18 +443,97 @@ function renderCrew(){
         <div class="w-meta">${w.language} · ${w.channel}</div>
       </div>
       <button class="quick-add" title="Assign task without a location">+</button>`;
+
+    let dragStarted = false;
     card.addEventListener('dragstart', e=>{
+      dragStarted = true;
       dragWorker = w;
       card.classList.add('dragging');
       e.dataTransfer.setData('text/plain', w.id);
       e.dataTransfer.effectAllowed = 'move';
     });
-    card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
-    card.querySelector('.quick-add').addEventListener('click', ()=>{
+    card.addEventListener('dragend', ()=>{
+      card.classList.remove('dragging');
+      setTimeout(()=>{ dragStarted = false; }, 50);
+    });
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.quick-add')) return;
+      if(dragStarted) return;
+      openTaskPanel(w);
+    });
+    card.querySelector('.quick-add').addEventListener('click', (e)=>{
+      e.stopPropagation();
       pendingPlacement = null;
       openModal(w, 'none');
     });
+    card.addEventListener('mouseenter', ()=> showWorkerTooltip(card, w));
+    card.addEventListener('mousemove', (e)=> positionTooltip(e));
+    card.addEventListener('mouseleave', hideWorkerTooltip);
     list.appendChild(card);
+  });
+}
+
+// ---------------- Hover tooltip: current task ----------------
+function currentTaskFor(workerId){
+  const wTasks = allTasks.filter(t=>t.worker_id===workerId);
+  return wTasks.find(t=>t.status==='in_progress') || wTasks.find(t=>t.status!=='done') || null;
+}
+function showWorkerTooltip(card, w){
+  const tt = document.getElementById('w-tooltip');
+  const task = currentTaskFor(w.id);
+  if(!task){
+    tt.innerHTML = `<div class="tt-label">Current task</div><div class="tt-time">Nothing assigned right now</div>`;
+  }else{
+    const startedLabel = task.in_progress_at ? new Date(task.in_progress_at).toLocaleString([], {hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'})
+      : (task.created_at ? 'Sent · not started yet' : '');
+    tt.innerHTML = `<div class="tt-label">${task.status === 'in_progress' ? 'Working now' : 'Current task'}</div>
+      <div class="tt-title">${escapeHtml(task.title)}</div>
+      <div class="tt-time">${task.in_progress_at ? 'Started ' + startedLabel : startedLabel}</div>`;
+  }
+  tt.classList.add('show');
+}
+function positionTooltip(e){
+  const tt = document.getElementById('w-tooltip');
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+function hideWorkerTooltip(){
+  document.getElementById('w-tooltip').classList.remove('show');
+}
+
+// ---------------- Task history side panel ----------------
+function openTaskPanel(w){
+  openPanelWorkerId = w.id;
+  document.getElementById('task-panel-name').textContent = w.name;
+  document.getElementById('task-panel').classList.add('open');
+  renderTaskPanel(w.id);
+}
+function closeTaskPanel(){
+  openPanelWorkerId = null;
+  document.getElementById('task-panel').classList.remove('open');
+}
+function renderTaskPanel(workerId){
+  const listEl = document.getElementById('task-panel-list');
+  const tasks = allTasks.filter(t=>t.worker_id===workerId)
+    .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+  document.getElementById('task-panel-sub').textContent = tasks.length + (tasks.length===1 ? ' task' : ' tasks');
+  if(!tasks.length){
+    listEl.innerHTML = '<div id="task-panel-empty">No tasks yet.</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  tasks.forEach(t=>{
+    const row = document.createElement('div');
+    row.className = 'task-row';
+    const statusLabel = (t.status||'sent').replace('_',' ');
+    const when = t.created_at ? new Date(t.created_at).toLocaleString([], {hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'}) : '';
+    row.innerHTML = `
+      <div class="tr-title">${escapeHtml(t.title)}</div>
+      <div class="tr-desc" title="${escapeHtml(t.description||'')}">${escapeHtml(t.description||'')}</div>
+      <div class="tr-meta"><span>${when}</span><span class="tr-status ${t.status||''}">${statusLabel}</span></div>`;
+    listEl.appendChild(row);
   });
 }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -335,7 +550,9 @@ async function loadTasks(){
   try{
     const r = await fetch(API + '/tasks');
     const tasks = await r.json();
+    allTasks = tasks;
     tasks.filter(t=>t.location_mode!=='none' && t.floor).forEach(placePinFromTask);
+    if(openPanelWorkerId) renderTaskPanel(openPanelWorkerId);
   }catch(e){ console.error(e); }
 }
 
@@ -349,9 +566,9 @@ function connectWs(){
   ws.onmessage = (evt)=>{
     const msg = JSON.parse(evt.data);
     if(msg.type === 'worker_registered'){ loadWorkers(); }
-    if(msg.type === 'task_created'){ loadWorkers(); if(msg.floor) placePinFromTask(msg); toast('Task assigned'); }
-    if(msg.type === 'task_updated'){ toast('Task status: ' + msg.status); }
-    if(msg.type === 'checkin_submitted'){ toast('Check-in photo submitted — review needed'); }
+    if(msg.type === 'task_created'){ loadWorkers(); loadTasks(); if(msg.floor) placePinFromTask(msg); toast('Task assigned'); }
+    if(msg.type === 'task_updated'){ loadTasks(); toast('Task status: ' + msg.status); }
+    if(msg.type === 'checkin_submitted'){ loadTasks(); toast('Check-in photo submitted — review needed'); }
   };
 }
 function setStatus(live){
