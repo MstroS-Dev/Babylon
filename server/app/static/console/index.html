@@ -219,6 +219,29 @@
   .task-row .tr-status{padding:2px 7px;border-radius:20px;border:1px solid var(--border);}
   .task-row .tr-status.done{color:var(--success);border-color:var(--success);}
   .task-row .tr-status.in_progress{color:var(--accent-2);border-color:var(--accent-2);}
+  .task-row .tr-requirement{font-size:10.5px;color:var(--accent-2);margin-top:5px;line-height:1.3;}
+  .task-row .tr-requirement b{color:var(--text-dim);font-weight:600;text-transform:uppercase;font-family:var(--font-mono);
+    font-size:9px;letter-spacing:.05em;}
+
+  .photo-gallery{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+  .photo-item{display:flex;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:7px;}
+  .photo-item img{width:52px;height:52px;object-fit:cover;border-radius:5px;flex:none;background:var(--panel-2);cursor:pointer;}
+  .photo-item .pi-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+  .photo-item .pi-top{display:flex;align-items:center;gap:6px;}
+  .photo-item .pi-stage{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--text-faint);letter-spacing:.05em;}
+  .verdict-badge{font-family:var(--font-mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+    padding:2px 6px;border-radius:20px;border:1px solid var(--border);}
+  .verdict-badge.match{color:var(--success);border-color:var(--success);}
+  .verdict-badge.no_match{color:var(--danger);border-color:var(--danger);}
+  .verdict-badge.unclear{color:var(--accent-2);border-color:var(--accent-2);}
+  .verdict-badge.overridden{color:var(--app-color);border-color:var(--app-color);}
+  .pi-explain{font-size:10.5px;color:var(--text-dim);line-height:1.35;}
+  .pi-actions{display:flex;gap:6px;margin-top:2px;}
+  .pi-actions button{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;
+    background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:5px;padding:3px 7px;cursor:pointer;}
+  .pi-actions button:hover{border-color:var(--text-dim);color:var(--text);}
+  .pi-actions button.ok:hover{border-color:var(--success);color:var(--success);}
+  .pi-actions button.bad:hover{border-color:var(--danger);color:var(--danger);}
 
   /* ---------- Add worker modal ---------- */
   #aw-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:80;}
@@ -288,6 +311,10 @@
       <div class="field">
         <label>Description</label>
         <textarea id="f-desc" placeholder="What needs to happen, materials, safety notes…"></textarea>
+      </div>
+      <div class="field">
+        <label>Required proof photo <span style="text-transform:none;color:var(--text-faint);">(optional — AI checks every upload against this)</span></label>
+        <input type="text" id="f-photo-req" placeholder="e.g. the cement blocks stacked by the north wall" maxlength="200">
       </div>
       <div class="field">
         <label>Location</label>
@@ -553,13 +580,70 @@ function renderTaskPanel(workerId){
     row.className = 'task-row';
     const statusLabel = (t.status||'sent').replace('_',' ');
     const when = t.created_at ? new Date(t.created_at).toLocaleString([], {hour:'2-digit',minute:'2-digit',month:'short',day:'numeric'}) : '';
+    const reqHtml = t.photo_requirement
+      ? `<div class="tr-requirement"><b>Needs photo of</b> ${escapeHtml(t.photo_requirement)}</div>` : '';
     row.innerHTML = `
       <div class="tr-title">${escapeHtml(t.title)}</div>
       <div class="tr-desc" title="${escapeHtml(t.description||'')}">${escapeHtml(t.description||'')}</div>
-      <div class="tr-meta"><span>${when}</span><span class="tr-status ${t.status||''}">${statusLabel}</span></div>`;
+      ${reqHtml}
+      <div class="tr-meta"><span>${when}</span><span class="tr-status ${t.status||''}">${statusLabel}</span></div>
+      <div class="photo-gallery" data-task-id="${t.id}"></div>`;
     listEl.appendChild(row);
+    renderPhotoGallery(row.querySelector('.photo-gallery'), t.photos || []);
   });
 }
+
+function verdictLabel(v){ return {match:'Match', no_match:'No match', unclear:'Unclear'}[v] || v; }
+
+function renderPhotoGallery(el, photos){
+  if(!photos.length){ return; }
+  el.innerHTML = photos.map(p=>{
+    let badge = '';
+    if(p.admin_override === true){
+      badge = `<span class="verdict-badge overridden">Admin: OK</span>`;
+    } else if(p.admin_override === false){
+      badge = `<span class="verdict-badge overridden">Admin: Not OK</span>`;
+    } else if(p.ai_verdict){
+      badge = `<span class="verdict-badge ${p.ai_verdict}">${verdictLabel(p.ai_verdict)}</span>`;
+    }
+    const explain = p.ai_explanation
+      ? `<div class="pi-explain">${escapeHtml(p.ai_explanation)}</div>` : '';
+    const showActions = p.ai_verdict; // only offer override once there's an AI verdict to weigh in on
+    const actions = showActions ? `
+      <div class="pi-actions">
+        <button class="ok" data-photo-id="${p.id}" data-approved="true">Mark OK</button>
+        <button class="bad" data-photo-id="${p.id}" data-approved="false">Mark not OK</button>
+      </div>` : '';
+    return `<div class="photo-item">
+        <img src="${escapeHtml(p.url)}" alt="task photo" onclick="window.open('${escapeHtml(p.url)}','_blank')">
+        <div class="pi-body">
+          <div class="pi-top"><span class="pi-stage">${escapeHtml(p.stage)}</span>${badge}</div>
+          ${explain}
+          ${actions}
+        </div>
+      </div>`;
+  }).join('');
+  el.querySelectorAll('.pi-actions button').forEach(btn=>{
+    btn.addEventListener('click', ()=> overridePhoto(btn.dataset.photoId, btn.dataset.approved === 'true'));
+  });
+}
+
+async function overridePhoto(photoId, approved){
+  const task = allTasks.find(t=> (t.photos||[]).some(p=>p.id===photoId));
+  if(!task) return;
+  try{
+    const fd = new FormData();
+    fd.append('approved', approved ? 'true' : 'false');
+    const r = await fetch(`${API}/tasks/${task.id}/photos/${photoId}/override`, {method:'POST', body:fd});
+    if(!r.ok) throw new Error(await r.text());
+    toast(approved ? 'Marked as OK' : 'Marked as not OK');
+    loadTasks();
+  }catch(e){
+    toast('Failed to update photo review');
+    console.error(e);
+  }
+}
+
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ---------------- Data loading ----------------
@@ -592,8 +676,14 @@ function connectWs(){
     if(msg.type === 'worker_registered'){ loadWorkers(); }
     if(msg.type === 'worker_removed'){ if(openPanelWorkerId === msg.worker_id) closeTaskPanel(); loadWorkers(); loadTasks(); }
     if(msg.type === 'task_created'){ loadWorkers(); loadTasks(); if(msg.floor) placePinFromTask(msg); toast('Task assigned'); }
-    if(msg.type === 'task_updated'){ loadTasks(); toast('Task status: ' + msg.status); }
+    if(msg.type === 'task_updated'){
+      loadTasks();
+      const mismatches = (msg.photo_reviews||[]).filter(p=>p.verdict==='no_match');
+      if(mismatches.length){ toast(mismatches.length + ' photo(s) flagged as not matching — worker notified'); }
+      else{ toast('Task status: ' + msg.status); }
+    }
     if(msg.type === 'checkin_submitted'){ loadTasks(); toast('Check-in photo submitted — review needed'); }
+    if(msg.type === 'photo_override'){ loadTasks(); }
   };
 }
 function setStatus(live){
@@ -862,6 +952,7 @@ function openModal(worker, defaultMode){
     : PERSON_SVG;
   document.getElementById('f-title').value = '';
   document.getElementById('f-desc').value = '';
+  document.getElementById('f-photo-req').value = '';
   document.getElementById('f-note').value = '';
   selectMode(defaultMode);
   document.getElementById('overlay').classList.add('open');
@@ -907,6 +998,8 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
   fd.append('worker_id', modalWorker.id);
   fd.append('title', title);
   fd.append('description', desc);
+  const photoReq = document.getElementById('f-photo-req').value.trim();
+  if(photoReq) fd.append('photo_requirement', photoReq);
   fd.append('location_mode', modalMode);
   if(modalMode !== 'none' && pendingPlacement){
     fd.append('floor', floors[pendingPlacement.floorIdx]);

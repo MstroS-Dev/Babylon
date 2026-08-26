@@ -34,6 +34,13 @@ class Task(Base):
     detailed_description = Column(Text, nullable=True)
     worker_id = Column(String, ForeignKey("workers.id"), nullable=False)
 
+    # What the proof photo should actually show, e.g. "the cement blocks
+    # stacked by the north wall" or "the window frame after sealing".
+    # When set, every photo the worker uploads for this task gets checked
+    # against this description by Claude's vision model (see
+    # photo_review.py) instead of just the general before/after review.
+    photo_requirement = Column(Text, nullable=True)
+
     status = Column(String, nullable=False, default="assigned")
     # assigned -> in_progress -> done
 
@@ -59,6 +66,34 @@ class Task(Base):
     done_at = Column(DateTime, nullable=True)
 
     worker = relationship("Worker", back_populates="tasks")
+    photos = relationship("TaskPhoto", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskPhoto(Base):
+    """One row per photo a worker uploads for a task. Separate from
+    Task.before_photo_urls/after_photo_urls (which stay as the flat
+    comma-separated list for backwards compatibility) so each individual
+    photo can carry its own AI verdict and admin override, and so the
+    admin gets a real log of every photo instead of just the last review."""
+    __tablename__ = "task_photos"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    task_id = Column(String, ForeignKey("tasks.id"), nullable=False)
+    stage = Column(String, nullable=False)  # 'before' or 'after'
+    url = Column(String, nullable=False)
+
+    # None until/unless the task has a photo_requirement to check against.
+    ai_verdict = Column(String, nullable=True)       # 'match' | 'no_match' | 'unclear'
+    ai_explanation = Column(Text, nullable=True)
+
+    # None = admin hasn't looked at it. True = admin confirms it's fine
+    # (overriding a no_match/unclear verdict, or just co-signing a match).
+    # False = admin says it's actually wrong (overriding a match verdict).
+    admin_override = Column(Boolean, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    task = relationship("Task", back_populates="photos")
 
 
 class Message(Base):
@@ -66,6 +101,7 @@ class Message(Base):
 
     id = Column(String, primary_key=True, default=gen_id)
     worker_id = Column(String, ForeignKey("workers.id"), nullable=False)
+    task_id = Column(String, ForeignKey("tasks.id"), nullable=True)  # set for task-related feedback (e.g. photo mismatch)
     direction = Column(String, nullable=False)  # 'to_worker' or 'from_worker'
     original_text = Column(Text, nullable=False)
     original_lang = Column(String, nullable=False)

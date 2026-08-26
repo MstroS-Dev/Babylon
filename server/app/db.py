@@ -18,6 +18,11 @@ _NEW_TASK_COLUMNS = {
     "location_note": "TEXT",
     "checkin_photo_url": "VARCHAR",
     "checkin_approved": "BOOLEAN",
+    "photo_requirement": "TEXT",
+}
+
+_NEW_MESSAGE_COLUMNS = {
+    "task_id": "VARCHAR",
 }
 
 
@@ -27,6 +32,11 @@ def _migrate(engine):
         for col, ddl_type in _NEW_TASK_COLUMNS.items():
             if col not in existing:
                 conn.execute(text(f"ALTER TABLE tasks ADD COLUMN {col} {ddl_type}"))
+
+        existing_msg = {row[1] for row in conn.execute(text("PRAGMA table_info(messages)"))}
+        for col, ddl_type in _NEW_MESSAGE_COLUMNS.items():
+            if col not in existing_msg:
+                conn.execute(text(f"ALTER TABLE messages ADD COLUMN {col} {ddl_type}"))
         conn.commit()
 
 

@@ -9,9 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .db import init_db, get_db
-from .models import Worker, Task, Message
+from .models import Worker, Task, Message, TaskPhoto
 from .translate import translate_text
 from .claude_review import review_task
+from .photo_review import verify_photo
 from .whatsapp import send_whatsapp_message
 from .push import send_task_push
 
@@ -176,6 +177,7 @@ async def create_task(
     pin_x: Optional[str] = Form(None),
     pin_y: Optional[str] = Form(None),
     location_note: Optional[str] = Form(None),
+    photo_requirement: Optional[str] = Form(None),  # e.g. "the cement blocks by the north wall"
     db: Session = Depends(get_db),
 ):
     if location_mode not in ("none", "pin", "gps", "photo_checkin"):
@@ -188,7 +190,7 @@ async def create_task(
     task = Task(worker_id=worker_id, title=title, description=description,
                 detailed_description=detailed_description, status="assigned",
                 location_mode=location_mode, floor=floor, pin_x=pin_x, pin_y=pin_y,
-                location_note=location_note)
+                location_note=location_note, photo_requirement=photo_requirement)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -249,6 +251,16 @@ def list_tasks(db: Session = Depends(get_db)):
             "before_photo_urls": (t.before_photo_urls or "").split(",") if t.before_photo_urls else [],
             "after_photo_urls": (t.after_photo_urls or "").split(",") if t.after_photo_urls else [],
             "claude_review": t.claude_review,
+            "photo_requirement": t.photo_requirement,
+            "photos": [
+                {
+                    "id": p.id, "stage": p.stage, "url": p.url,
+                    "ai_verdict": p.ai_verdict, "ai_explanation": p.ai_explanation,
+                    "admin_override": p.admin_override,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                }
+                for p in sorted(t.photos, key=lambda p: p.created_at or datetime.datetime.min)
+            ],
             "location_mode": t.location_mode, "floor": t.floor,
             "pin_x": t.pin_x, "pin_y": t.pin_y, "location_note": t.location_note,
             "checkin_photo_url": t.checkin_photo_url, "checkin_approved": t.checkin_approved,
@@ -274,12 +286,71 @@ async def upload_task_photo(
         raise HTTPException(400, "stage must be 'before' or 'after'")
 
     saved_urls = []
+    saved_paths = []
     for photo in photos:
         fname = f"{task_id}_{stage}_{datetime.datetime.utcnow().timestamp()}_{photo.filename}"
         path = os.path.join(UPLOAD_DIR, fname)
         with open(path, "wb") as f:
             shutil.copyfileobj(photo.file, f)
         saved_urls.append(f"/uploads/{fname}")
+        saved_paths.append(path)
+
+    # Log every photo individually, and if the task specifies what the
+    # photo should actually show, get an immediate AI verdict on each one -
+    # this is separate from (and runs well before) the general before/after
+    # review below, which only fires once, at the end.
+    photo_reviews = []
+    worker = task.worker
+    for url, path in zip(saved_urls, saved_paths):
+        task_photo = TaskPhoto(task_id=task.id, stage=stage, url=url)
+        if task.photo_requirement:
+            try:
+                verdict_data = await asyncio.to_thread(
+                    verify_photo, task.title, task.description, task.photo_requirement, path
+                )
+            except Exception as e:
+                verdict_data = {"verdict": "unclear", "explanation": f"(AI review failed: {e})"}
+            task_photo.ai_verdict = verdict_data["verdict"]
+            task_photo.ai_explanation = verdict_data["explanation"]
+        db.add(task_photo)
+        db.flush()  # get task_photo.id without a separate commit
+        photo_reviews.append({
+            "id": task_photo.id, "url": url, "stage": stage,
+            "verdict": task_photo.ai_verdict, "explanation": task_photo.ai_explanation,
+        })
+
+        # A clear mismatch gets sent back to the worker as feedback - framed
+        # as "try again", never a harsh rejection, since this is meant to be
+        # an iterative process.
+        if task_photo.ai_verdict == "no_match":
+            feedback_text = (
+                f"That photo doesn't look right for \"{task.title}\": {task_photo.ai_explanation} "
+                f"Please take another photo of {task.photo_requirement}."
+            )
+            if worker.channel == "whatsapp":
+                try:
+                    def _translate_and_send(text=feedback_text):
+                        translated = translate_text(text, MANAGER_LANGUAGE, worker.language)
+                        result = send_whatsapp_message(worker.phone, translated)
+                        return translated, result
+                    translated, _ = await asyncio.wait_for(
+                        asyncio.to_thread(_translate_and_send), timeout=25.0
+                    )
+                    db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
+                                    original_text=feedback_text, original_lang=MANAGER_LANGUAGE,
+                                    translated_text=translated, translated_lang=worker.language))
+                except Exception as e:
+                    print(f"[photo-feedback:ERROR] task={task.id} worker={worker.id} -> {e}")
+            else:
+                # App worker: on-device ML Kit translates this like it does
+                # task text, so just log it — plus a push so it surfaces
+                # even if they've already put the phone down.
+                db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
+                                original_text=feedback_text, original_lang=MANAGER_LANGUAGE))
+                try:
+                    send_task_push(worker.device_token, task.id, "Photo needs a retake")
+                except Exception as e:
+                    print(f"[push:ERROR] task={task.id} worker={worker.id} -> {e}")
 
     if stage == "before":
         existing = task.before_photo_urls.split(",") if task.before_photo_urls else []
@@ -309,9 +380,31 @@ async def upload_task_photo(
 
     await manager_console.broadcast({
         "type": "task_updated", "task_id": task.id, "status": task.status,
-        "claude_review": task.claude_review,
+        "claude_review": task.claude_review, "photo_reviews": photo_reviews,
     })
-    return {"id": task.id, "status": task.status, "claude_review": task.claude_review}
+    return {"id": task.id, "status": task.status, "claude_review": task.claude_review,
+            "photo_reviews": photo_reviews}
+
+
+@app.post("/tasks/{task_id}/photos/{photo_id}/override")
+async def override_photo_verdict(
+    task_id: str,
+    photo_id: str,
+    approved: bool = Form(...),  # True = admin says this photo IS correct, False = admin says it is NOT
+    db: Session = Depends(get_db),
+):
+    """Manager overrides (or co-signs) the AI's verdict on a specific photo."""
+    photo = db.query(TaskPhoto).filter(TaskPhoto.id == photo_id, TaskPhoto.task_id == task_id).first()
+    if not photo:
+        raise HTTPException(404, "Photo not found")
+    photo.admin_override = approved
+    db.commit()
+    db.refresh(photo)
+
+    await manager_console.broadcast({
+        "type": "photo_override", "task_id": task_id, "photo_id": photo.id, "admin_override": approved,
+    })
+    return {"id": photo.id, "admin_override": photo.admin_override}
 
 
 @app.post("/tasks/{task_id}/checkin")
