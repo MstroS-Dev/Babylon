@@ -105,6 +105,7 @@ class TaskListActivity : AppCompatActivity() {
         intent.putExtra("task_title", task.title)
         intent.putExtra("task_description", task.description)
         intent.putExtra("task_status", task.status)
+        intent.putExtra("task_photo_requirement", task.photo_requirement)
         startActivity(intent)
     }
 

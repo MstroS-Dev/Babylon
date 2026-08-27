@@ -7,6 +7,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.babylon.site.data.PhotoReviewDto
 import com.babylon.site.data.SiteCommsApi
 import com.babylon.site.databinding.ActivityTaskDetailBinding
 import com.babylon.site.util.OnDeviceTranslator
@@ -75,6 +76,12 @@ class TaskDetailActivity : AppCompatActivity() {
         binding.detailTitle.text = intent.getStringExtra("task_title")
         binding.detailDescription.text = intent.getStringExtra("task_description")
         binding.detailStatus.text = intent.getStringExtra("task_status")
+
+        val photoRequirement = intent.getStringExtra("task_photo_requirement")
+        if (!photoRequirement.isNullOrBlank()) {
+            binding.detailPhotoRequirement.text = "📸 Required photo: $photoRequirement"
+            binding.detailPhotoRequirement.visibility = android.view.View.VISIBLE
+        }
 
         workerLang = getSharedPreferences("site_comms", MODE_PRIVATE)
             .getString("language", "en") ?: "en"
@@ -160,14 +167,18 @@ class TaskDetailActivity : AppCompatActivity() {
         scope.launch(Dispatchers.IO) {
             try {
                 val api = SiteCommsApi.create()
-                val body = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
-                val part = MultipartBody.Part.createFormData("photos", file.name, body)
+                val requestBody = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("photos", file.name, requestBody)
                 val stagePart = stage.toRequestBody("text/plain".toMediaTypeOrNull())
 
                 val response = api.uploadTaskPhoto(taskId, stagePart, listOf(part))
                 launch(Dispatchers.Main) {
                     if (response.isSuccessful) {
-                        binding.detailStatus.text = response.body()?.status
+                        val responseBody = response.body()
+                        binding.detailStatus.text = responseBody?.status
+                        showPhotoVerdict(responseBody?.photo_reviews?.lastOrNull())
+                    } else {
+                        binding.detailStatus.text = "Upload failed (server error) - tap the button to retry"
                     }
                 }
             } catch (e: Exception) {
@@ -176,5 +187,21 @@ class TaskDetailActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun showPhotoVerdict(review: PhotoReviewDto?) {
+        // No photo_requirement was set on this task, so nothing was reviewed - keep it hidden.
+        if (review == null || review.verdict == null) {
+            binding.photoVerdict.visibility = android.view.View.GONE
+            return
+        }
+        val (text, color) = when (review.verdict) {
+            "match" -> "✅ Looks good!" to "#1B5E20"
+            "no_match" -> "⚠️ ${review.explanation ?: "That doesn't look right - please try again."}" to "#B71C1C"
+            else -> "🤔 Not sure yet - a manager will take a look." to "#8A6D00"
+        }
+        binding.photoVerdict.text = text
+        binding.photoVerdict.setTextColor(android.graphics.Color.parseColor(color))
+        binding.photoVerdict.visibility = android.view.View.VISIBLE
     }
 }

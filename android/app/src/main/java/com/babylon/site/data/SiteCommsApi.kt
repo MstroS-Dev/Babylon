@@ -25,10 +25,28 @@ data class TaskDto(
     val before_photo_urls: List<String>,
     val after_photo_urls: List<String>,
     val claude_review: String?,
+    val photo_requirement: String? = null,
     val created_at: String?,
 )
 
 data class RegisterResponse(val id: String, val name: String)
+
+// Response of POST /tasks/{task_id}/photo - a lightweight status object,
+// NOT a full TaskDto (it doesn't include title/description/worker_id/etc).
+data class PhotoReviewDto(
+    val id: String,
+    val url: String,
+    val stage: String,
+    val verdict: String?,      // "match" | "no_match" | "unclear" | null (no photo_requirement set)
+    val explanation: String?,
+)
+
+data class PhotoUploadResponse(
+    val id: String,
+    val status: String,
+    val claude_review: String?,
+    val photo_reviews: List<PhotoReviewDto> = emptyList(),
+)
 
 interface SiteCommsApi {
 
@@ -67,7 +85,7 @@ interface SiteCommsApi {
         @Path("task_id") taskId: String,
         @Part("stage") stage: RequestBody,
         @Part photos: List<MultipartBody.Part>,
-    ): Response<TaskDto>
+    ): Response<PhotoUploadResponse>
 
     companion object {
         fun create(): SiteCommsApi {
