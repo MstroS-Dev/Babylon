@@ -54,7 +54,12 @@ def send_whatsapp_message(to_phone: str, text: str, media_url: str = None):
         # characters. Going over silently produces a generic 400
         # "Content Variables parameter is invalid" error with no length
         # hint, so we guard and log here rather than let it fail blind.
-        var_text = text
+        # WhatsApp Content Template variables cannot contain newline
+        # characters - Twilio rejects them with the same generic 400
+        # "Content Variables parameter is invalid" error as the length
+        # issue below, with no indication that newlines were the cause.
+        # Collapse them into a readable separator instead.
+        var_text = " \u2014 ".join(line.strip() for line in text.splitlines() if line.strip())
         if len(var_text) > 1024:
             print(f"[whatsapp:WARN] content variable too long ({len(var_text)} chars), truncating to 1024")
             var_text = var_text[:1000].rsplit(" ", 1)[0] + "\u2026"
