@@ -48,6 +48,14 @@ data class PhotoUploadResponse(
     val photo_reviews: List<PhotoReviewDto> = emptyList(),
 )
 
+data class ApkUpdateInfo(
+    val version_code: Int,
+    val version_name: String,
+    val notes: String?,
+    val uploaded_at: String?,
+    val url: String,
+)
+
 interface SiteCommsApi {
 
     @Multipart
@@ -86,6 +94,11 @@ interface SiteCommsApi {
         @Part("stage") stage: RequestBody,
         @Part photos: List<MultipartBody.Part>,
     ): Response<PhotoUploadResponse>
+
+    // Polled periodically to see if a newer APK build has been published.
+    // Returns 404 until the server has had at least one build uploaded to it.
+    @GET("apk/latest.json")
+    suspend fun checkApkUpdate(): Response<ApkUpdateInfo>
 
     companion object {
         fun create(): SiteCommsApi {

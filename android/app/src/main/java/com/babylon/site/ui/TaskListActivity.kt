@@ -1,13 +1,17 @@
 package com.babylon.site.ui
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.babylon.site.data.ApkUpdateInfo
 import com.babylon.site.data.SiteCommsApi
 import com.babylon.site.data.TaskDto
 import com.babylon.site.databinding.ActivityTaskListBinding
+import com.babylon.site.util.AppUpdater
 import com.babylon.site.util.OnDeviceTranslator
 import com.babylon.site.util.TaskSpeaker
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -52,6 +56,41 @@ class TaskListActivity : AppCompatActivity() {
         binding.swipeRefresh.setOnRefreshListener { loadTasks(workerId) }
         loadTasks(workerId)
         registerDeviceTokenIfAvailable(workerId)
+        checkForAppUpdate()
+    }
+
+    /**
+     * Silently checks the server for a newer APK build. If one exists, shows
+     * a persistent Snackbar with an "Update" action - tapping it downloads
+     * the new APK and opens the system installer (which still needs one
+     * final tap from the user; Android doesn't allow silent self-install
+     * outside Google Play or enterprise device management).
+     */
+    private fun checkForAppUpdate() {
+        scope.launch(Dispatchers.IO) {
+            val update = AppUpdater.checkForUpdate() ?: return@launch
+            launch(Dispatchers.Main) { promptUpdate(update) }
+        }
+    }
+
+    private fun promptUpdate(update: ApkUpdateInfo) {
+        Snackbar.make(
+            binding.root,
+            "A new update is available (v${update.version_name})",
+            Snackbar.LENGTH_INDEFINITE,
+        ).setAction("Update") {
+            if (AppUpdater.canInstall(this)) {
+                Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show()
+                AppUpdater.downloadAndInstall(this, update)
+            } else {
+                Toast.makeText(
+                    this,
+                    "Allow this app to install updates, then tap Update again",
+                    Toast.LENGTH_LONG,
+                ).show()
+                AppUpdater.requestInstallPermission(this)
+            }
+        }.show()
     }
 
     /**

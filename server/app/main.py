@@ -1,10 +1,11 @@
 import os
+import json
 import shutil
 import datetime
 import asyncio
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, Depends, UploadFile, File, Form, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,18 @@ MANAGER_LANGUAGE = "he"  # your friend's default language, change as needed
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Where CI drops the latest built APK + a small version-metadata JSON file
+# that the app polls to check for updates. Served directly as static files
+# so /apk/latest.apk and /apk/latest.json "just work" once uploaded.
+APK_DIR = "apk_releases"
+os.makedirs(APK_DIR, exist_ok=True)
+
+# Shared secret CI must send to be allowed to publish a new APK build.
+# Set APK_UPLOAD_SECRET in /etc/site-comms.env on the server and as a
+# matching GitHub Actions repo secret of the same name. If this isn't set
+# on the server, uploads are refused rather than silently left open.
+APK_UPLOAD_SECRET = os.environ.get("APK_UPLOAD_SECRET")
 
 app = FastAPI(title="Site Comms Server")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -491,6 +504,49 @@ async def worker_reply(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/apk/upload")
+async def upload_apk(
+    request: Request,
+    version_code: int = Form(...),
+    version_name: str = Form(...),
+    notes: str = Form(""),
+    apk: UploadFile = File(...),
+):
+    """Called by CI after a successful build to publish the newest APK.
+    Requires a shared secret (X-Deploy-Secret header) matching
+    APK_UPLOAD_SECRET on this server - NOT the same thing as a GitHub
+    token, so nothing sensitive to the repo itself is ever exposed here
+    or embedded in the distributed app."""
+    if not APK_UPLOAD_SECRET or request.headers.get("X-Deploy-Secret") != APK_UPLOAD_SECRET:
+        raise HTTPException(403, "Missing or invalid deploy secret")
+    if not apk.filename.endswith(".apk"):
+        raise HTTPException(400, "Expected a .apk file")
+
+    contents = await apk.read()
+    with open(os.path.join(APK_DIR, "latest.apk"), "wb") as f:
+        f.write(contents)
+
+    meta = {
+        "version_code": version_code,
+        "version_name": version_name,
+        "notes": notes,
+        "uploaded_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "url": "/apk/latest.apk",
+    }
+    with open(os.path.join(APK_DIR, "latest.json"), "w") as f:
+        json.dump(meta, f)
+
+    return {"status": "ok", **meta}
+
+
+# Mounted after the POST route above, not before: a StaticFiles mount only
+# handles GET/HEAD and matches by path prefix regardless of registration
+# order relative to routes defined "later" in the file - if this were
+# mounted up top like /uploads is, it would shadow POST /apk/upload with
+# a 405 before the real route ever got a chance to run.
+app.mount("/apk", StaticFiles(directory=APK_DIR), name="apk")
 
 
 # Manager console (static frontend). Mounted last so it never shadows API routes above.

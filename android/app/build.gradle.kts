@@ -11,8 +11,12 @@ android {
         applicationId = "com.babylon.site"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        // CI passes -PversionCode=<github.run_number> so every successful
+        // Actions build gets a fresh, strictly-increasing version. Falls
+        // back to 1 for local/manual builds where that isn't set.
+        val ciVersionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionCode = ciVersionCode
+        versionName = "0.1.$ciVersionCode"
     }
 
     buildTypes {
@@ -31,6 +35,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

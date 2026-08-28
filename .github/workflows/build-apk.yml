@@ -30,10 +30,26 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: gradle assembleDebug --no-daemon --stacktrace -PversionCode=$VERSION_CODE
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: site-comms-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK to server (update check)
+        if: ${{ vars.APK_SERVER_URL != '' }}
+        env:
+          APK_SERVER_URL: ${{ vars.APK_SERVER_URL }}
+          APK_UPLOAD_SECRET: ${{ secrets.APK_UPLOAD_SECRET }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          curl -sf -X POST "$APK_SERVER_URL/apk/upload" \
+            -H "X-Deploy-Secret: $APK_UPLOAD_SECRET" \
+            -F "version_code=${{ github.run_number }}" \
+            -F "version_name=0.1.${{ github.run_number }}" \
+            -F "notes=$COMMIT_MESSAGE" \
+            -F "apk=@android/app/build/outputs/apk/debug/app-debug.apk;type=application/vnd.android.package-archive"
