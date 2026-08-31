@@ -34,6 +34,7 @@ class TaskListActivity : AppCompatActivity() {
     private lateinit var workerLang: String
     private lateinit var workerId: String
     private var pollingJob: Job? = null
+    private var updateCheckJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +64,6 @@ class TaskListActivity : AppCompatActivity() {
         binding.swipeRefresh.setOnRefreshListener { loadTasks(showSpinner = true) }
         loadTasks(showSpinner = true)
         registerDeviceTokenIfAvailable(workerId)
-        checkForAppUpdate()
         setupShiftBar()
     }
 
@@ -140,7 +140,7 @@ class TaskListActivity : AppCompatActivity() {
     }
 
     /**
-     * Polls the task list every 30s while this screen is actually visible,
+     * Polls the task list every 5s while this screen is actually visible,
      * silently (no spinner, no visible refresh) unless the user pulls to
      * refresh themselves. Started in onResume/stopped in onPause rather
      * than tied to onCreate/onDestroy: that's what makes this naturally
@@ -152,7 +152,7 @@ class TaskListActivity : AppCompatActivity() {
         pollingJob?.cancel()
         pollingJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
-                delay(30_000)
+                delay(5_000)
                 if (isActive) loadTasks(showSpinner = false)
             }
         }
@@ -161,28 +161,44 @@ class TaskListActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         startPolling()
+        startUpdateChecking()
     }
 
     override fun onPause() {
         super.onPause()
         pollingJob?.cancel()
+        updateCheckJob?.cancel()
     }
 
     /**
-     * Silently checks the server for a newer APK build. If one exists, shows
-     * a persistent Snackbar with an "Update" action - tapping it downloads
-     * the new APK and opens the system installer (which still needs one
-     * final tap from the user; Android doesn't allow silent self-install
-     * outside Google Play or enterprise device management).
+     * Checks for a newer APK build immediately, then again every 300s
+     * while this screen is visible - same start/stop lifecycle as task
+     * polling (onResume/onPause), so it doesn't run while a worker is
+     * inside a task detail screen either. If an update is already showing
+     * a Snackbar, later checks are skipped rather than stacking more of
+     * them on top.
      */
-    private fun checkForAppUpdate() {
-        scope.launch(Dispatchers.IO) {
-            val update = AppUpdater.checkForUpdate() ?: return@launch
-            launch(Dispatchers.Main) { promptUpdate(update) }
+    private fun startUpdateChecking() {
+        updateCheckJob?.cancel()
+        updateCheckJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                checkForAppUpdateOnce()
+                delay(300_000)
+            }
         }
     }
 
+    private suspend fun checkForAppUpdateOnce() {
+        val update = AppUpdater.checkForUpdate() ?: return
+        scope.launch(Dispatchers.Main) {
+            if (!updatePromptShowing) promptUpdate(update)
+        }
+    }
+
+    private var updatePromptShowing = false
+
     private fun promptUpdate(update: ApkUpdateInfo) {
+        updatePromptShowing = true
         Snackbar.make(
             binding.root,
             "A new update is available (v${update.version_name})",
@@ -199,7 +215,11 @@ class TaskListActivity : AppCompatActivity() {
                 ).show()
                 AppUpdater.requestInstallPermission(this)
             }
-        }.show()
+        }.addCallback(object : com.google.android.material.snackbar.BaseTransientBottomBar.BaseCallback<Snackbar>() {
+            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                updatePromptShowing = false
+            }
+        }).show()
     }
 
     /**
