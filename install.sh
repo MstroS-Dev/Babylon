@@ -5,7 +5,7 @@ set -e
 
 REPO_URL="https://github.com/MstroS-Dev/Babylon.git"
 APP_DIR="/opt/site-comms"
-DOMAIN="ec2-16-170-108-223.eu-north-1.compute.amazonaws.com"
+DOMAIN="site-comms.16.170.108.223.sslip.io"
 
 echo "== Installing system packages =="
 sudo apt update
@@ -55,9 +55,11 @@ sudo systemctl enable site-comms
 sudo systemctl restart site-comms
 
 echo "== Setting up nginx reverse proxy =="
+if ! grep -q "server_names_hash_bucket_size" /etc/nginx/nginx.conf; then
+  sudo sed -i '/http {/a \\tserver_names_hash_bucket_size 64;' /etc/nginx/nginx.conf
+fi
 sudo cp "$APP_DIR/nginx-site-comms.conf" /etc/nginx/sites-available/site-comms
 sudo ln -sf /etc/nginx/sites-available/site-comms /etc/nginx/sites-enabled/site-comms
-sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 

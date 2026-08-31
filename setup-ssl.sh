@@ -18,19 +18,24 @@
 # setting, not something on the box itself.
 set -e
 
-DOMAIN="ec2-16-170-108-223.eu-north-1.compute.amazonaws.com"
+DOMAIN="site-comms.16.170.108.223.sslip.io"
 APP_DIR="/opt/site-comms"
 
 echo "== Installing nginx + certbot =="
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
+echo "== Ensuring nginx can handle our (longer than default) hostname =="
+if ! grep -q "server_names_hash_bucket_size" /etc/nginx/nginx.conf; then
+  sudo sed -i '/http {/a \\tserver_names_hash_bucket_size 64;' /etc/nginx/nginx.conf
+fi
+
 echo "== Installing reverse proxy config =="
 sudo cp "$APP_DIR/nginx-site-comms.conf" /etc/nginx/sites-available/site-comms
 sudo ln -sf /etc/nginx/sites-available/site-comms /etc/nginx/sites-enabled/site-comms
-# Remove the default nginx welcome-page site if it's still enabled, so it
-# doesn't conflict on port 80.
-sudo rm -f /etc/nginx/sites-enabled/default
+# Note: NOT removing sites-enabled/default or any other site here - this
+# server also hosts other, unrelated sites (e.g. etay-training), and this
+# script has no business touching those.
 sudo nginx -t
 sudo systemctl reload nginx
 
