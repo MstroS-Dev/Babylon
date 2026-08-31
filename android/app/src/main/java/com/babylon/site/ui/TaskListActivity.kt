@@ -13,7 +13,10 @@ import com.babylon.site.util.OnDeviceTranslator
 import com.babylon.site.util.TaskSpeaker
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class TaskListActivity : AppCompatActivity() {
@@ -24,6 +27,8 @@ class TaskListActivity : AppCompatActivity() {
     private lateinit var speaker: TaskSpeaker
     private val scope = MainScope()
     private lateinit var workerLang: String
+    private lateinit var workerId: String
+    private var pollingJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,14 +36,15 @@ class TaskListActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val prefs = getSharedPreferences("site_comms", MODE_PRIVATE)
-        val workerId = prefs.getString("worker_id", null)
+        val storedWorkerId = prefs.getString("worker_id", null)
         workerLang = prefs.getString("language", "en") ?: "en"
 
-        if (workerId == null) {
+        if (storedWorkerId == null) {
             startActivity(android.content.Intent(this, RegisterActivity::class.java))
             finish()
             return
         }
+        workerId = storedWorkerId
 
         // Manager writes tasks in Hebrew/English - assume 'he' as source for now.
         // (Swap for whatever the manager's actual language is.)
@@ -53,10 +59,39 @@ class TaskListActivity : AppCompatActivity() {
         binding.taskRecycler.layoutManager = LinearLayoutManager(this)
         binding.taskRecycler.adapter = adapter
 
-        binding.swipeRefresh.setOnRefreshListener { loadTasks(workerId) }
-        loadTasks(workerId)
+        binding.swipeRefresh.setOnRefreshListener { loadTasks(showSpinner = true) }
+        loadTasks(showSpinner = true)
         registerDeviceTokenIfAvailable(workerId)
         checkForAppUpdate()
+    }
+
+    /**
+     * Polls the task list every 30s while this screen is actually visible,
+     * silently (no spinner, no visible refresh) unless the user pulls to
+     * refresh themselves. Started in onResume/stopped in onPause rather
+     * than tied to onCreate/onDestroy: that's what makes this naturally
+     * stop the moment a worker opens a task's detail screen (this activity
+     * is paused underneath it) - nothing pulls them out of what they're
+     * looking at, and polling picks back up the moment they return here.
+     */
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(30_000)
+                if (isActive) loadTasks(showSpinner = false)
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startPolling()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        pollingJob?.cancel()
     }
 
     /**
@@ -110,7 +145,7 @@ class TaskListActivity : AppCompatActivity() {
         // }
     }
 
-    private fun loadTasks(workerId: String) {
+    private fun loadTasks(showSpinner: Boolean) {
         scope.launch(Dispatchers.IO) {
             try {
                 val api = SiteCommsApi.create()
@@ -130,10 +165,10 @@ class TaskListActivity : AppCompatActivity() {
 
                 launch(Dispatchers.Main) {
                     adapter.submitList(myTasks)
-                    binding.swipeRefresh.isRefreshing = false
+                    if (showSpinner) binding.swipeRefresh.isRefreshing = false
                 }
             } catch (e: Exception) {
-                launch(Dispatchers.Main) { binding.swipeRefresh.isRefreshing = false }
+                launch(Dispatchers.Main) { if (showSpinner) binding.swipeRefresh.isRefreshing = false }
             }
         }
     }
