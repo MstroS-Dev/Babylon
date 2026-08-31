@@ -9,6 +9,7 @@ import com.babylon.site.data.SiteCommsApi
 import com.babylon.site.data.TaskDto
 import com.babylon.site.databinding.ActivityTaskListBinding
 import com.babylon.site.util.AppUpdater
+import com.babylon.site.util.LanguageDetector
 import com.babylon.site.util.OnDeviceTranslator
 import com.babylon.site.util.TaskSpeaker
 import com.babylon.site.util.shiftStrings
@@ -24,7 +25,10 @@ class TaskListActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTaskListBinding
     private lateinit var adapter: TaskAdapter
-    private lateinit var translator: OnDeviceTranslator
+    // Keyed by detected source language, so we don't rebuild a translator
+    // (and re-trigger a model download) for every single task - most tasks
+    // from the same manager will detect as the same source language.
+    private val translators = mutableMapOf<String, OnDeviceTranslator>()
     private lateinit var speaker: TaskSpeaker
     private val scope = MainScope()
     private lateinit var workerLang: String
@@ -47,10 +51,6 @@ class TaskListActivity : AppCompatActivity() {
         }
         workerId = storedWorkerId
 
-        // Manager writes tasks in Hebrew/English - assume 'he' as source for now.
-        // (Swap for whatever the manager's actual language is.)
-        translator = OnDeviceTranslator("he", workerLang)
-        translator.ensureModelDownloaded(onReady = {}, onError = {})
         speaker = TaskSpeaker(this, workerLang)
 
         adapter = TaskAdapter(
@@ -225,22 +225,12 @@ class TaskListActivity : AppCompatActivity() {
                 val api = SiteCommsApi.create()
                 val response = api.listTasks()
                 val myTasks = response.body()?.filter { it.worker_id == workerId } ?: emptyList()
-
-                // Translate each task's title/description on-device for display
-                val translated = myTasks.map { task ->
-                    var translatedText = task.description
-                    translator.translate(
-                        task.description,
-                        onResult = { translatedText = it },
-                        onError = {},
-                    )
-                    task to translatedText
-                }
+                val displayTasks = myTasks.map { translateForDisplay(it) }
 
                 launch(Dispatchers.Main) {
-                    adapter.submitList(myTasks)
+                    adapter.submitList(displayTasks)
                     binding.emptyStateText.text = shiftStrings(workerLang).noTasksYet
-                    binding.emptyStateText.visibility = if (myTasks.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+                    binding.emptyStateText.visibility = if (displayTasks.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
                     setConnectionStatus(connected = true)
                     if (showSpinner) binding.swipeRefresh.isRefreshing = false
                 }
@@ -250,6 +240,35 @@ class TaskListActivity : AppCompatActivity() {
                     if (showSpinner) binding.swipeRefresh.isRefreshing = false
                 }
             }
+        }
+    }
+
+    /**
+     * Detects the actual language a task was typed in (rather than
+     * assuming a fixed one - a manager may type in Hebrew, English, or a
+     * mix) and translates its title/description into the worker's chosen
+     * language. If detection is inconclusive, or the task is already in
+     * the worker's language, or translation fails for any reason, falls
+     * back to the original text - a worker seeing untranslated text is a
+     * much smaller problem than a crash or a garbled mistranslation.
+     */
+    private suspend fun translateForDisplay(task: TaskDto): TaskDto {
+        val sourceLang = LanguageDetector.detect("${task.title}. ${task.description}") ?: return task
+        if (sourceLang == workerLang) return task // already in the worker's language
+
+        return try {
+            val translator = translators.getOrPut(sourceLang) { OnDeviceTranslator(sourceLang, workerLang) }
+            // Safe to call every time, not just on first creation - ML Kit
+            // resolves immediately once the model's already on-device, so
+            // this only actually downloads anything the first time a given
+            // source language shows up.
+            translator.ensureModelDownloadedSuspend()
+            task.copy(
+                title = translator.translateSuspend(task.title),
+                description = translator.translateSuspend(task.description),
+            )
+        } catch (e: Exception) {
+            task // translation failed (e.g. model download failed) - show the original rather than crash
         }
     }
 
@@ -265,7 +284,7 @@ class TaskListActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        translator.close()
+        translators.values.forEach { it.close() }
         speaker.shutdown()
     }
 }
