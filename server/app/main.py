@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .db import init_db, get_db
-from .models import Worker, Task, Message, TaskPhoto
+from .models import Worker, Task, Message, TaskPhoto, ShiftEvent
 from .translate import translate_text
 from .claude_review import review_task
 from .photo_review import verify_photo
@@ -149,9 +149,42 @@ def list_workers(db: Session = Depends(get_db)):
     workers = db.query(Worker).all()
     return [
         {"id": w.id, "name": w.name, "language": w.language, "channel": w.channel,
-         "photo_url": w.photo_url, "phone": w.phone}
+         "photo_url": w.photo_url, "phone": w.phone, "checked_in": w.checked_in,
+         "last_status_change": w.last_status_change.isoformat() if w.last_status_change else None}
         for w in workers
     ]
+
+
+@app.post("/workers/{worker_id}/checkin")
+async def check_in(worker_id: str, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(404, "Worker not found")
+    worker.checked_in = True
+    worker.last_status_change = datetime.datetime.utcnow()
+    db.add(ShiftEvent(worker_id=worker.id, event="check_in"))
+    db.commit()
+    await manager_console.broadcast({
+        "type": "worker_shift", "worker_id": worker.id, "checked_in": True,
+        "at": worker.last_status_change.isoformat(),
+    })
+    return {"checked_in": True, "at": worker.last_status_change.isoformat()}
+
+
+@app.post("/workers/{worker_id}/checkout")
+async def check_out(worker_id: str, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(404, "Worker not found")
+    worker.checked_in = False
+    worker.last_status_change = datetime.datetime.utcnow()
+    db.add(ShiftEvent(worker_id=worker.id, event="check_out"))
+    db.commit()
+    await manager_console.broadcast({
+        "type": "worker_shift", "worker_id": worker.id, "checked_in": False,
+        "at": worker.last_status_change.isoformat(),
+    })
+    return {"checked_in": False, "at": worker.last_status_change.isoformat()}
 
 
 @app.delete("/workers/{worker_id}")

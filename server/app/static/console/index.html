@@ -475,7 +475,7 @@ function renderCrew(){
         <span class="chan-dot ${w.channel}"></span></div>
       <div class="w-info">
         <div class="w-name">${escapeHtml(w.name)}</div>
-        <div class="w-meta">${w.language} · ${w.channel}</div>
+        <div class="w-meta">${w.language} · ${w.channel} · <span style="color:${w.checked_in ? '#1B5E20' : '#999'}">${w.checked_in ? '🟢 On shift' : '⚪ Off shift'}</span></div>
       </div>
       <button class="quick-add" title="Assign task without a location">+</button>
       <button class="remove-worker" title="Remove worker">&#10005;</button>`;
@@ -684,6 +684,7 @@ function connectWs(){
     }
     if(msg.type === 'checkin_submitted'){ loadTasks(); toast('Check-in photo submitted — review needed'); }
     if(msg.type === 'photo_override'){ loadTasks(); }
+    if(msg.type === 'worker_shift'){ loadWorkers(); }
   };
 }
 function setStatus(live){

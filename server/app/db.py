@@ -25,6 +25,11 @@ _NEW_MESSAGE_COLUMNS = {
     "task_id": "VARCHAR",
 }
 
+_NEW_WORKER_COLUMNS = {
+    "checked_in": "BOOLEAN NOT NULL DEFAULT 0",
+    "last_status_change": "DATETIME",
+}
+
 
 def _migrate(engine):
     with engine.connect() as conn:
@@ -37,6 +42,11 @@ def _migrate(engine):
         for col, ddl_type in _NEW_MESSAGE_COLUMNS.items():
             if col not in existing_msg:
                 conn.execute(text(f"ALTER TABLE messages ADD COLUMN {col} {ddl_type}"))
+
+        existing_worker = {row[1] for row in conn.execute(text("PRAGMA table_info(workers)"))}
+        for col, ddl_type in _NEW_WORKER_COLUMNS.items():
+            if col not in existing_worker:
+                conn.execute(text(f"ALTER TABLE workers ADD COLUMN {col} {ddl_type}"))
         conn.commit()
 
 

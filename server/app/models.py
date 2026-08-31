@@ -20,9 +20,23 @@ class Worker(Base):
     phone = Column(String, nullable=True, unique=True)
     channel = Column(String, nullable=False)  # 'app' or 'whatsapp'
     device_token = Column(String, nullable=True)  # push token for app users
+    checked_in = Column(Boolean, nullable=False, default=False)
+    last_status_change = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     tasks = relationship("Task", back_populates="worker")
+
+
+class ShiftEvent(Base):
+    """History log of check-in/check-out events, separate from Worker's
+    current checked_in flag - lets the manager see attendance over time,
+    not just the current state."""
+    __tablename__ = "shift_events"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    worker_id = Column(String, ForeignKey("workers.id"), nullable=False)
+    event = Column(String, nullable=False)  # 'check_in' | 'check_out'
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
 class Task(Base):

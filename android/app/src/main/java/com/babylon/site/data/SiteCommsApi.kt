@@ -56,6 +56,17 @@ data class ApkUpdateInfo(
     val url: String,
 )
 
+data class WorkerStatusDto(
+    val id: String,
+    val name: String,
+    val language: String,
+    val channel: String,
+    val checked_in: Boolean = false,
+    val last_status_change: String? = null,
+)
+
+data class ShiftResponse(val checked_in: Boolean, val at: String?)
+
 interface SiteCommsApi {
 
     @Multipart
@@ -99,6 +110,15 @@ interface SiteCommsApi {
     // Returns 404 until the server has had at least one build uploaded to it.
     @GET("apk/latest.json")
     suspend fun checkApkUpdate(): Response<ApkUpdateInfo>
+
+    @GET("workers")
+    suspend fun listWorkers(): Response<List<WorkerStatusDto>>
+
+    @POST("workers/{worker_id}/checkin")
+    suspend fun checkIn(@Path("worker_id") workerId: String): Response<ShiftResponse>
+
+    @POST("workers/{worker_id}/checkout")
+    suspend fun checkOut(@Path("worker_id") workerId: String): Response<ShiftResponse>
 
     companion object {
         fun create(): SiteCommsApi {

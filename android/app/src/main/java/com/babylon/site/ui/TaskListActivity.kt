@@ -11,6 +11,7 @@ import com.babylon.site.databinding.ActivityTaskListBinding
 import com.babylon.site.util.AppUpdater
 import com.babylon.site.util.OnDeviceTranslator
 import com.babylon.site.util.TaskSpeaker
+import com.babylon.site.util.shiftStrings
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -63,6 +64,73 @@ class TaskListActivity : AppCompatActivity() {
         loadTasks(showSpinner = true)
         registerDeviceTokenIfAvailable(workerId)
         checkForAppUpdate()
+        setupShiftBar()
+    }
+
+    /**
+     * Sets up the always-visible top status bar: connection state text plus
+     * a Check In / Check Out button (the visible one reflects the worker's
+     * current state, fetched from the server on launch). This bar is what
+     * keeps the screen from ever looking blank/dead when there are simply
+     * no tasks right now - there's always something here.
+     */
+    private fun setupShiftBar() {
+        val strings = shiftStrings(workerLang)
+        binding.checkInButton.text = strings.checkIn
+        binding.checkOutButton.text = strings.checkOut
+
+        binding.checkInButton.setOnClickListener { setCheckedIn(true) }
+        binding.checkOutButton.setOnClickListener { setCheckedIn(false) }
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val workers = SiteCommsApi.create().listWorkers().body() ?: emptyList()
+                val me = workers.find { it.id == workerId }
+                launch(Dispatchers.Main) { applyCheckedInState(me?.checked_in ?: false) }
+            } catch (e: Exception) {
+                // Leave both buttons hidden rather than guessing - next
+                // successful poll/resume will pick the real state up.
+            }
+        }
+    }
+
+    private fun setCheckedIn(checkedIn: Boolean) {
+        val strings = shiftStrings(workerLang)
+        scope.launch(Dispatchers.IO) {
+            try {
+                val api = SiteCommsApi.create()
+                val response = if (checkedIn) api.checkIn(workerId) else api.checkOut(workerId)
+                launch(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        applyCheckedInState(checkedIn)
+                        Toast.makeText(
+                            this@TaskListActivity,
+                            if (checkedIn) strings.checkedIn else strings.checkedOut,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } else {
+                        Toast.makeText(this@TaskListActivity, "Couldn't update - try again", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                launch(Dispatchers.Main) {
+                    Toast.makeText(this@TaskListActivity, "Couldn't update: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun applyCheckedInState(checkedIn: Boolean) {
+        binding.checkInButton.visibility = if (checkedIn) android.view.View.GONE else android.view.View.VISIBLE
+        binding.checkOutButton.visibility = if (checkedIn) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    private fun setConnectionStatus(connected: Boolean) {
+        val strings = shiftStrings(workerLang)
+        binding.connectionStatus.text = if (connected) "🟢 ${strings.connected}" else "🔴 ${strings.offline}"
+        binding.statusBar.setBackgroundColor(
+            android.graphics.Color.parseColor(if (connected) "#1B5E20" else "#616161")
+        )
     }
 
     /**
@@ -165,10 +233,16 @@ class TaskListActivity : AppCompatActivity() {
 
                 launch(Dispatchers.Main) {
                     adapter.submitList(myTasks)
+                    binding.emptyStateText.text = shiftStrings(workerLang).noTasksYet
+                    binding.emptyStateText.visibility = if (myTasks.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+                    setConnectionStatus(connected = true)
                     if (showSpinner) binding.swipeRefresh.isRefreshing = false
                 }
             } catch (e: Exception) {
-                launch(Dispatchers.Main) { if (showSpinner) binding.swipeRefresh.isRefreshing = false }
+                launch(Dispatchers.Main) {
+                    setConnectionStatus(connected = false)
+                    if (showSpinner) binding.swipeRefresh.isRefreshing = false
+                }
             }
         }
     }
