@@ -19,6 +19,22 @@ android {
         versionName = "0.1.$ciVersionCode"
     }
 
+    // AGP creates a "debug" signingConfig automatically, but by default it
+    // points at an auto-generated, per-machine keystore. On GitHub Actions
+    // that's a brand new keystore on every single run (fresh VM each time),
+    // so every build had a different signature and Android refused to
+    // install a new build as an "update" over the previous one - only a
+    // full uninstall+reinstall worked. Pointing it at a fixed, checked-in
+    // keystore instead makes every build share the same signature.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
