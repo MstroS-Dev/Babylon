@@ -128,9 +128,15 @@ class TaskListActivity : AppCompatActivity() {
     private fun setConnectionStatus(connected: Boolean) {
         val strings = shiftStrings(workerLang)
         binding.connectionStatus.text = if (connected) "🟢 ${strings.connected}" else "🔴 ${strings.offline}"
-        binding.statusBar.setBackgroundColor(
-            android.graphics.Color.parseColor(if (connected) "#1B5E20" else "#616161")
+        val color = android.graphics.Color.parseColor(
+            if (connected) "#0F766E" else "#6B7280"
         )
+        // The bar's background is a rounded-corner shape drawable, not a
+        // flat color - tinting it (rather than replacing the background
+        // outright) keeps the rounded corners intact.
+        val mutableBackground = binding.statusBar.background.mutate()
+        androidx.core.graphics.drawable.DrawableCompat.setTint(mutableBackground, color)
+        binding.statusBar.background = mutableBackground
     }
 
     /**

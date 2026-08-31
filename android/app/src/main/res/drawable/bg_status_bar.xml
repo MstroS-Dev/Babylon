@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar chrome: square top (flush with the screen edge), rounded
+     bottom corners. Recolored in code via GradientDrawable tinting for
+     connected/offline states. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#0F766E" />
+    <corners
+        android:bottomLeftRadius="18dp"
+        android:bottomRightRadius="18dp" />
+</shape>

@@ -10,8 +10,9 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#1B5E20"
-        android:padding="12dp">
+        android:background="@drawable/bg_status_bar"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp">
 
         <TextView
             android:id="@+id/connectionStatus"
@@ -20,11 +21,12 @@
             android:layout_weight="1"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
+            android:textSize="15sp"
             android:text="🟢 Connected" />
 
         <Button
             android:id="@+id/checkInButton"
-            style="?android:attr/buttonStyleSmall"
+            style="@style/Widget.SiteComms.Button.Pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Check In"
@@ -32,7 +34,7 @@
 
         <Button
             android:id="@+id/checkOutButton"
-            style="?android:attr/buttonStyleSmall"
+            style="@style/Widget.SiteComms.Button.Pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Check Out"
@@ -42,7 +44,8 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:background="@color/background">
 
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
             android:id="@+id/swipeRefresh"
@@ -53,7 +56,8 @@
                 android:id="@+id/taskRecycler"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:padding="8dp" />
+                android:clipToPadding="false"
+                android:padding="12dp" />
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -62,7 +66,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:textColor="#999999"
+            android:textColor="@color/text_secondary"
             android:textSize="16sp"
             android:text="No tasks yet"
             android:visibility="gone" />

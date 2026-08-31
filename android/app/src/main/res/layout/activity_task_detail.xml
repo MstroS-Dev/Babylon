@@ -1,123 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp">
-
-    <TextView
-        android:id="@+id/detailTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textStyle="bold"
-        android:textSize="22sp" />
-
-    <TextView
-        android:id="@+id/detailDescription"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="16sp"
-        android:layout_marginTop="8dp" />
-
-    <TextView
-        android:id="@+id/detailPhotoRequirement"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textStyle="italic"
-        android:textColor="#444444"
-        android:background="#FFF6DA"
-        android:padding="10dp"
-        android:layout_marginTop="12dp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/detailStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#666666"
-        android:layout_marginTop="8dp" />
-
-    <Button
-        android:id="@+id/beforePhotoButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Take Before Photo (start task)" />
+    android:background="@color/background"
+    android:fillViewport="true">
 
     <LinearLayout
-        android:id="@+id/beforePhotoProgress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#F5F5F5"
-        android:padding="10dp"
-        android:layout_marginTop="8dp"
-        android:visibility="gone">
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <ImageView
-            android:id="@+id/beforePhotoThumbnail"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:scaleType="centerCrop"
-            android:background="#DDDDDD" />
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/surface">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/detailTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textStyle="bold"
+                    android:textSize="22sp"
+                    android:textColor="@color/text_primary" />
+
+                <TextView
+                    android:id="@+id/detailDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="8dp" />
+
+                <TextView
+                    android:id="@+id/detailPhotoRequirement"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textStyle="italic"
+                    android:textColor="@color/status_warning"
+                    android:background="@drawable/bg_pill"
+                    android:backgroundTint="@color/status_warning_bg"
+                    android:padding="12dp"
+                    android:layout_marginTop="14dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/detailStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/status_neutral"
+                    android:background="@drawable/bg_pill"
+                    android:backgroundTint="@color/status_neutral_bg"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:layout_marginTop="14dp" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <Button
+            android:id="@+id/beforePhotoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Take Before Photo (start task)" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/beforePhotoProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/background"
+            app:strokeColor="#E5E7EB"
+            app:strokeWidth="1dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp">
+
+                <ImageView
+                    android:id="@+id/beforePhotoThumbnail"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:scaleType="centerCrop"
+                    android:background="@drawable/bg_photo_thumb"
+                    android:clipToOutline="true" />
+
+                <TextView
+                    android:id="@+id/beforePhotoStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <Button
+            android:id="@+id/afterPhotoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Take After Photo (mark done)" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/afterPhotoProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/background"
+            app:strokeColor="#E5E7EB"
+            app:strokeWidth="1dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp">
+
+                <ImageView
+                    android:id="@+id/afterPhotoThumbnail"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:scaleType="centerCrop"
+                    android:background="@drawable/bg_photo_thumb"
+                    android:clipToOutline="true" />
+
+                <TextView
+                    android:id="@+id/afterPhotoStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <Button
+            android:id="@+id/replyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="🎤 Reply with your voice" />
 
         <TextView
-            android:id="@+id/beforePhotoStatus"
-            android:layout_width="0dp"
+            android:id="@+id/replyStatus"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="12dp"
-            android:textSize="15sp" />
+            android:layout_marginTop="10dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
     </LinearLayout>
 
-    <Button
-        android:id="@+id/afterPhotoButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Take After Photo (mark done)" />
-
-    <LinearLayout
-        android:id="@+id/afterPhotoProgress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#F5F5F5"
-        android:padding="10dp"
-        android:layout_marginTop="8dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/afterPhotoThumbnail"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:scaleType="centerCrop"
-            android:background="#DDDDDD" />
-
-        <TextView
-            android:id="@+id/afterPhotoStatus"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="12dp"
-            android:textSize="15sp" />
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/replyButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="🎤 Reply with your voice" />
-
-    <TextView
-        android:id="@+id/replyStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textColor="#666666"
-        android:textSize="14sp" />
-
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

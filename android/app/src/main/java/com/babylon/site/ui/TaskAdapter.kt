@@ -2,9 +2,11 @@ package com.babylon.site.ui
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.babylon.site.data.TaskDto
 import com.babylon.site.databinding.ItemTaskBinding
+import com.babylon.site.util.statusPillColors
 
 class TaskAdapter(
     private val onSpeak: (String) -> Unit,
@@ -36,8 +38,17 @@ class TaskAdapter(
             binding.taskTitle.text = task.title
             binding.taskDescription.text = task.description
             binding.taskStatus.text = task.status.replace("_", " ")
+            applyStatusPillColor(task.status)
             binding.speakButton.setOnClickListener { onSpeak("${task.title}. ${task.description}") }
             binding.root.setOnClickListener { onOpen(task) }
+        }
+
+        private fun applyStatusPillColor(status: String) {
+            val context = binding.root.context
+            val (textColorRes, bgColorRes) = statusPillColors(status)
+            binding.taskStatus.setTextColor(ContextCompat.getColor(context, textColorRes))
+            binding.taskStatus.backgroundTintList =
+                ContextCompat.getColorStateList(context, bgColorRes)
         }
     }
 }

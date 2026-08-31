@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Core palette - deep teal + warm amber, distinct from the generic
+         Material blue default, and reuses the amber/green/red already
+         established for photo-review status so the whole app reads as
+         one system rather than mismatched screens. -->
+    <color name="primary">#0F766E</color>
+    <color name="primary_dark">#0B5C56</color>
+    <color name="primary_light">#CCFBF1</color>
+    <color name="accent">#F59E0B</color>
+
+    <color name="background">#F7F7F5</color>
+    <color name="surface">#FFFFFF</color>
+
+    <color name="text_primary">#1F2937</color>
+    <color name="text_secondary">#6B7280</color>
+
+    <color name="status_success">#15803D</color>
+    <color name="status_success_bg">#DCFCE7</color>
+    <color name="status_error">#B91C1C</color>
+    <color name="status_error_bg">#FEE2E2</color>
+    <color name="status_warning">#92400E</color>
+    <color name="status_warning_bg">#FEF3C7</color>
+    <color name="status_neutral">#374151</color>
+    <color name="status_neutral_bg">#E5E7EB</color>
+
+    <color name="status_bar_offline">#6B7280</color>
+</resources>

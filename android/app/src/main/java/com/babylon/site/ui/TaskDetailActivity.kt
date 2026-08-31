@@ -14,6 +14,7 @@ import com.babylon.site.data.SiteCommsApi
 import com.babylon.site.databinding.ActivityTaskDetailBinding
 import com.babylon.site.util.CountingRequestBody
 import com.babylon.site.util.OnDeviceTranslator
+import com.babylon.site.util.applyStatusPill
 import com.babylon.site.util.buildSpeechRecognizerIntent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -80,6 +81,7 @@ class TaskDetailActivity : AppCompatActivity() {
         binding.detailTitle.text = intent.getStringExtra("task_title")
         binding.detailDescription.text = intent.getStringExtra("task_description")
         binding.detailStatus.text = intent.getStringExtra("task_status")
+        applyStatusPill(this, binding.detailStatus, intent.getStringExtra("task_status") ?: "")
 
         val photoRequirementText = intent.getStringExtra("task_photo_requirement")
         photoRequirement = photoRequirementText
@@ -204,6 +206,7 @@ class TaskDetailActivity : AppCompatActivity() {
                     if (response.isSuccessful) {
                         val responseBody = response.body()
                         binding.detailStatus.text = responseBody?.status
+                        applyStatusPill(this@TaskDetailActivity, binding.detailStatus, responseBody?.status ?: "")
                         showPhotoResult(stage, views, responseBody?.photo_reviews?.lastOrNull())
                     } else {
                         setStageStatus(views, "❌ Upload failed - tap the button to retry", "#B71C1C")

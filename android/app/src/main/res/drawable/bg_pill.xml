@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fully rounded pill background, meant to be recolored per-instance via
+     android:backgroundTint (SRC_IN mode replaces the fill color entirely,
+     so the white base here doesn't matter/show through). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="20dp" />
+</shape>
