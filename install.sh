@@ -5,10 +5,11 @@ set -e
 
 REPO_URL="https://github.com/MstroS-Dev/Babylon.git"
 APP_DIR="/opt/site-comms"
+DOMAIN="ec2-16-170-108-223.eu-north-1.compute.amazonaws.com"
 
 echo "== Installing system packages =="
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv git
+sudo apt install -y python3 python3-pip python3-venv git nginx certbot python3-certbot-nginx
 
 echo "== Cloning repo =="
 sudo rm -rf "$APP_DIR"
@@ -28,6 +29,11 @@ if [ ! -f /etc/site-comms.env ]; then
 fi
 
 echo "== Creating systemd service =="
+# Bound to 127.0.0.1, not 0.0.0.0 - nginx (set up below) is the only thing
+# that should be reachable from outside; it terminates TLS and forwards to
+# uvicorn locally. --proxy-headers/--forwarded-allow-ips lets uvicorn trust
+# nginx's X-Forwarded-* headers (client IP, https scheme) instead of
+# treating every request as if it came from nginx itself.
 sudo tee /etc/systemd/system/site-comms.service > /dev/null <<EOF
 [Unit]
 Description=Site Comms Server
@@ -37,7 +43,7 @@ After=network.target
 Type=simple
 WorkingDirectory=$APP_DIR/server
 EnvironmentFile=/etc/site-comms.env
-ExecStart=$APP_DIR/server/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=$APP_DIR/server/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always
 
 [Install]
@@ -48,8 +54,21 @@ sudo systemctl daemon-reload
 sudo systemctl enable site-comms
 sudo systemctl restart site-comms
 
+echo "== Setting up nginx reverse proxy =="
+sudo cp "$APP_DIR/nginx-site-comms.conf" /etc/nginx/sites-available/site-comms
+sudo ln -sf /etc/nginx/sites-available/site-comms /etc/nginx/sites-enabled/site-comms
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+
+echo "== Requesting free Let's Encrypt certificate =="
+echo "Make sure your EC2 Security Group allows inbound 80 and 443 before this step."
+echo "You'll be asked for an email and to agree to Let's Encrypt's terms."
+sudo certbot --nginx -d "$DOMAIN"
+
 echo "== Done =="
-echo "Server should be live on port 8000. Check status with:"
+echo "Server should be live at https://$DOMAIN"
+echo "Check status with:"
 echo "  sudo systemctl status site-comms"
 echo "View logs with:"
 echo "  sudo journalctl -u site-comms -f"
