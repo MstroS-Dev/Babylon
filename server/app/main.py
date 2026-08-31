@@ -285,6 +285,35 @@ def list_tasks(db: Session = Depends(get_db)):
     ]
 
 
+async def _notify_worker_photo_feedback(db, worker, task, feedback_text: str, push_title: str):
+    """Sends a 'this photo needs a retake' style message to a worker, via
+    WhatsApp (translated) or logged for the app (translated on-device) plus
+    a push. Shared by the automatic no_match path and the manager's manual
+    'not ok' override, so both notify the worker the same way."""
+    if worker.channel == "whatsapp":
+        try:
+            def _translate_and_send(text=feedback_text):
+                translated = translate_text(text, MANAGER_LANGUAGE, worker.language)
+                result = send_whatsapp_message(worker.phone, translated)
+                return translated, result
+            translated, _ = await asyncio.wait_for(asyncio.to_thread(_translate_and_send), timeout=25.0)
+            db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
+                            original_text=feedback_text, original_lang=MANAGER_LANGUAGE,
+                            translated_text=translated, translated_lang=worker.language))
+        except Exception as e:
+            print(f"[photo-feedback:ERROR] task={task.id} worker={worker.id} -> {e}")
+    else:
+        # App worker: on-device ML Kit translates this like it does task
+        # text, so just log it - plus a push so it surfaces even if
+        # they've already put the phone down.
+        db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
+                        original_text=feedback_text, original_lang=MANAGER_LANGUAGE))
+        try:
+            send_task_push(worker.device_token, task.id, push_title)
+        except Exception as e:
+            print(f"[push:ERROR] task={task.id} worker={worker.id} -> {e}")
+
+
 @app.post("/tasks/{task_id}/photo")
 async def upload_task_photo(
     task_id: str,
@@ -340,30 +369,7 @@ async def upload_task_photo(
                 f"That photo doesn't look right for \"{task.title}\": {task_photo.ai_explanation} "
                 f"Please take another photo of {task.photo_requirement}."
             )
-            if worker.channel == "whatsapp":
-                try:
-                    def _translate_and_send(text=feedback_text):
-                        translated = translate_text(text, MANAGER_LANGUAGE, worker.language)
-                        result = send_whatsapp_message(worker.phone, translated)
-                        return translated, result
-                    translated, _ = await asyncio.wait_for(
-                        asyncio.to_thread(_translate_and_send), timeout=25.0
-                    )
-                    db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
-                                    original_text=feedback_text, original_lang=MANAGER_LANGUAGE,
-                                    translated_text=translated, translated_lang=worker.language))
-                except Exception as e:
-                    print(f"[photo-feedback:ERROR] task={task.id} worker={worker.id} -> {e}")
-            else:
-                # App worker: on-device ML Kit translates this like it does
-                # task text, so just log it — plus a push so it surfaces
-                # even if they've already put the phone down.
-                db.add(Message(worker_id=worker.id, task_id=task.id, direction="to_worker",
-                                original_text=feedback_text, original_lang=MANAGER_LANGUAGE))
-                try:
-                    send_task_push(worker.device_token, task.id, "Photo needs a retake")
-                except Exception as e:
-                    print(f"[push:ERROR] task={task.id} worker={worker.id} -> {e}")
+            await _notify_worker_photo_feedback(db, worker, task, feedback_text, "Photo needs a retake")
 
     if stage == "before":
         existing = task.before_photo_urls.split(",") if task.before_photo_urls else []
@@ -406,13 +412,28 @@ async def override_photo_verdict(
     approved: bool = Form(...),  # True = admin says this photo IS correct, False = admin says it is NOT
     db: Session = Depends(get_db),
 ):
-    """Manager overrides (or co-signs) the AI's verdict on a specific photo."""
+    """Manager overrides (or co-signs) the AI's verdict on a specific photo.
+    A manual 'not ok' notifies the worker the same way an automatic
+    no_match does - the AI's explanation isn't necessarily available or
+    relevant here (a manager can override a match too), so this uses a
+    simple, direct message instead."""
+    task = db.query(Task).filter(Task.id == task_id).first()
     photo = db.query(TaskPhoto).filter(TaskPhoto.id == photo_id, TaskPhoto.task_id == task_id).first()
-    if not photo:
-        raise HTTPException(404, "Photo not found")
+    if not task or not photo:
+        raise HTTPException(404, "Task or photo not found")
     photo.admin_override = approved
     db.commit()
     db.refresh(photo)
+
+    if approved is False:
+        feedback_text = f"That photo isn't the correct item for \"{task.title}\". Please take another photo."
+        if task.photo_requirement:
+            feedback_text = (
+                f"That photo isn't the correct item for \"{task.title}\". "
+                f"Please take another photo of {task.photo_requirement}."
+            )
+        await _notify_worker_photo_feedback(db, task.worker, task, feedback_text, "Photo needs a retake")
+        db.commit()
 
     await manager_console.broadcast({
         "type": "photo_override", "task_id": task_id, "photo_id": photo.id, "admin_override": approved,
