@@ -366,7 +366,7 @@ async def upload_task_photo(
         # an iterative process.
         if task_photo.ai_verdict == "no_match":
             feedback_text = (
-                f"That photo doesn't look right for \"{task.title}\": {task_photo.ai_explanation} "
+                f"That's not the correct item for \"{task.title}\". "
                 f"Please take another photo of {task.photo_requirement}."
             )
             await _notify_worker_photo_feedback(db, worker, task, feedback_text, "Photo needs a retake")

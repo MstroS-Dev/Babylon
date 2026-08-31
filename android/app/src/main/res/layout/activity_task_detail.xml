@@ -37,15 +37,6 @@
         android:textColor="#666666"
         android:layout_marginTop="8dp" />
 
-    <TextView
-        android:id="@+id/photoVerdict"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="15sp"
-        android:padding="10dp"
-        android:layout_marginTop="8dp"
-        android:visibility="gone" />
-
     <Button
         android:id="@+id/beforePhotoButton"
         android:layout_width="match_parent"
@@ -53,12 +44,66 @@
         android:layout_marginTop="32dp"
         android:text="Take Before Photo (start task)" />
 
+    <LinearLayout
+        android:id="@+id/beforePhotoProgress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#F5F5F5"
+        android:padding="10dp"
+        android:layout_marginTop="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/beforePhotoThumbnail"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:scaleType="centerCrop"
+            android:background="#DDDDDD" />
+
+        <TextView
+            android:id="@+id/beforePhotoStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:textSize="15sp" />
+    </LinearLayout>
+
     <Button
         android:id="@+id/afterPhotoButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Take After Photo (mark done)" />
+
+    <LinearLayout
+        android:id="@+id/afterPhotoProgress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#F5F5F5"
+        android:padding="10dp"
+        android:layout_marginTop="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/afterPhotoThumbnail"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:scaleType="centerCrop"
+            android:background="#DDDDDD" />
+
+        <TextView
+            android:id="@+id/afterPhotoStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:textSize="15sp" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/replyButton"
