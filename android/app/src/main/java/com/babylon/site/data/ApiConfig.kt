@@ -1,7 +1,7 @@
 package com.babylon.site.data
 
 object ApiConfig {
-    const val BASE_URL = "http://ec2-16-170-108-223.eu-north-1.compute.amazonaws.com:8000/"
+    const val BASE_URL = "https://site-comms.16.170.108.223.sslip.io/"
 }
 
 data class LanguageOption(val code: String, val label: String)
