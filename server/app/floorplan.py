@@ -354,9 +354,16 @@ def _subtract(R: List[Tuple[float, float]], s: float, e: float):
 
 def _pair_walls(group: Dict[str, Any], t_min: float, t_max: float, min_overlap: float,
                 keep_unpaired: bool, default_t: float, min_single: float) -> List[Dict[str, Any]]:
+    """Pair parallel outline lines into centreline walls.
+
+    Candidate pairs are taken longest-overlap first, so when a partition is drawn on top of
+    a thicker wall (several parallel lines within a few cm) the long, consistent double line
+    wins instead of a short spurious pair. Leftover single lines that lie inside an already
+    found wall are discarded as duplicates.
+    """
     lines = group["lines"]               # sorted by offset
     rem = [[(l[1], l[2])] for l in lines]
-    walls = []
+    cands = []
     for i in range(len(lines)):
         for j in range(i + 1, len(lines)):
             d = lines[j][0] - lines[i][0]
@@ -365,13 +372,26 @@ def _pair_walls(group: Dict[str, Any], t_min: float, t_max: float, min_overlap: 
             if d < t_min:
                 continue
             ov = _intersect(rem[i], rem[j], min_overlap)
-            for s, e in ov:
-                walls.append({"o": (lines[i][0] + lines[j][0]) / 2, "a": s, "b": e, "t": d})
-                rem[i] = _subtract(rem[i], s, e)
-                rem[j] = _subtract(rem[j], s, e)
+            if ov:
+                cands.append((sum(e - s for s, e in ov), i, j))
+    cands.sort(key=lambda c: -c[0])
+
+    walls = []
+    for _, i, j in cands:
+        d = lines[j][0] - lines[i][0]
+        for s, e in _intersect(rem[i], rem[j], min_overlap):
+            walls.append({"o": (lines[i][0] + lines[j][0]) / 2, "a": s, "b": e, "t": d})
+            rem[i] = _subtract(rem[i], s, e)
+            rem[j] = _subtract(rem[j], s, e)
+
     if keep_unpaired:
         for i, l in enumerate(lines):
-            for s, e in rem[i]:
+            pieces = rem[i]
+            for w in walls:                      # drop duplicates hiding inside a found wall
+                if abs(l[0] - w["o"]) <= w["t"] / 2 + 0.02:
+                    for s, e in [(w["a"], w["b"])]:
+                        pieces = _subtract(pieces, s, e)
+            for s, e in pieces:
                 if e - s >= min_single:
                     walls.append({"o": l[0], "a": s, "b": e, "t": default_t})
     return walls
