@@ -31,6 +31,7 @@ _NEW_MESSAGE_COLUMNS = {
 _NEW_WORKER_COLUMNS = {
     "checked_in": "BOOLEAN NOT NULL DEFAULT 0",
     "last_status_change": "DATETIME",
+    "trade": "VARCHAR",
 }
 
 

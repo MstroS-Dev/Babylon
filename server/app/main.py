@@ -10,12 +10,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .db import init_db, get_db
-from .models import Worker, Task, Message, TaskPhoto, ShiftEvent
+from .models import Worker, Task, Message, TaskPhoto, ShiftEvent, FloorPlan
 from .translate import translate_text
 from .claude_review import review_task
 from .photo_review import verify_photo
 from .whatsapp import send_whatsapp_message
 from .push import send_task_push
+from . import floorplan as fp_lib
 
 MANAGER_LANGUAGE = "he"  # your friend's default language, change as needed
 
@@ -149,10 +150,23 @@ def list_workers(db: Session = Depends(get_db)):
     workers = db.query(Worker).all()
     return [
         {"id": w.id, "name": w.name, "language": w.language, "channel": w.channel,
-         "photo_url": w.photo_url, "phone": w.phone, "checked_in": w.checked_in,
+         "photo_url": w.photo_url, "phone": w.phone, "checked_in": w.checked_in, "trade": w.trade,
          "last_status_change": w.last_status_change.isoformat() if w.last_status_change else None}
         for w in workers
     ]
+
+
+@app.put("/workers/{worker_id}/trade")
+def set_worker_trade(worker_id: str, trade: Optional[str] = Form(None), db: Session = Depends(get_db)):
+    """Manager-only (console) designation, e.g. Painter / Engineer. The app never sets or reads this.
+    An empty value clears it."""
+    w = db.get(Worker, worker_id)
+    if not w:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    t = " ".join((trade or "").split())[:40]
+    w.trade = t or None
+    db.commit()
+    return {"id": w.id, "trade": w.trade}
 
 
 @app.post("/workers/{worker_id}/checkin")
@@ -558,6 +572,109 @@ async def worker_reply(
         "text": translated_text, "original_text": original_text,
     })
     return {"id": msg.id, "translated_text": translated_text}
+
+
+# ---------------- floor plans (CAD import) ----------------
+MAX_PLAN_UPLOAD = 40 * 1024 * 1024
+_PLAN_LIBS_MISSING = ("The server is missing the CAD-import libraries (ezdxf, pymupdf). "
+                      "On the server run: cd /opt/site-comms && ./deploy.sh")
+
+
+def _plan_opts(layers: Optional[str], scale: Optional[float], units: Optional[str],
+               merge_pairs: Optional[bool], page: Optional[int]) -> dict:
+    opts: dict = {}
+    if layers is not None:
+        try:
+            parsed = json.loads(layers)
+            assert isinstance(parsed, list)
+            opts["layers"] = [str(x) for x in parsed]
+        except Exception:
+            raise HTTPException(status_code=422, detail="layers must be a JSON list of layer names")
+    if scale:
+        opts["scale"] = scale
+    if units:
+        opts["units"] = units
+    if merge_pairs is not None:
+        opts["merge_pairs"] = merge_pairs
+    if page:
+        opts["page"] = page
+    return opts
+
+
+async def _read_plan_upload(file: UploadFile) -> bytes:
+    data = await file.read(MAX_PLAN_UPLOAD + 1)
+    if len(data) > MAX_PLAN_UPLOAD:
+        raise HTTPException(status_code=413, detail="File too large (40 MB max)")
+    return data
+
+
+@app.post("/floorplans/preview")
+async def preview_floorplan(
+    file: UploadFile = File(...),
+    layers: Optional[str] = Form(None),
+    scale: Optional[float] = Form(None),
+    units: Optional[str] = Form(None),
+    merge_pairs: Optional[bool] = Form(None),
+    page: Optional[int] = Form(None),
+):
+    """Parse an uploaded DXF/PDF and return its layers plus the walls that WOULD be built. Saves nothing."""
+    data = await _read_plan_upload(file)
+    try:
+        return await asyncio.to_thread(
+            fp_lib.preview, file.filename or "", data, _plan_opts(layers, scale, units, merge_pairs, page))
+    except fp_lib.PlanError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ImportError:
+        raise HTTPException(status_code=503, detail=_PLAN_LIBS_MISSING)
+
+
+@app.put("/floorplans/{floor}")
+async def save_floorplan(
+    floor: str,
+    file: UploadFile = File(...),
+    layers: Optional[str] = Form(None),
+    scale: Optional[float] = Form(None),
+    units: Optional[str] = Form(None),
+    merge_pairs: Optional[bool] = Form(None),
+    page: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Build the plan with the chosen options and store it as this floor's layout."""
+    data = await _read_plan_upload(file)
+    opts = _plan_opts(layers, scale, units, merge_pairs, page)
+
+    def build():
+        raw = fp_lib.extract_segments(file.filename or "", data, int(opts.get("page", 0) or 0))
+        return fp_lib.build_plan(raw, file.filename or "", opts)
+
+    try:
+        plan = await asyncio.to_thread(build)
+    except fp_lib.PlanError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ImportError:
+        raise HTTPException(status_code=503, detail=_PLAN_LIBS_MISSING)
+    row = db.get(FloorPlan, floor)
+    if row is None:
+        row = FloorPlan(floor=floor)
+        db.add(row)
+    row.plan_json = json.dumps(plan)
+    row.source_name = file.filename
+    db.commit()
+    return {"floor": floor, "plan": plan}
+
+
+@app.get("/floorplans")
+def list_floorplans(db: Session = Depends(get_db)):
+    return {r.floor: json.loads(r.plan_json) for r in db.query(FloorPlan).all()}
+
+
+@app.delete("/floorplans/{floor}")
+def delete_floorplan(floor: str, db: Session = Depends(get_db)):
+    row = db.get(FloorPlan, floor)
+    if row:
+        db.delete(row)
+        db.commit()
+    return {"ok": True}
 
 
 @app.get("/health")

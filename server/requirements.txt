@@ -6,3 +6,5 @@ anthropic
 websockets
 twilio
 google-auth
+ezdxf
+pymupdf

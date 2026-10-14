@@ -22,6 +22,7 @@ class Worker(Base):
     device_token = Column(String, nullable=True)  # push token for app users
     checked_in = Column(Boolean, nullable=False, default=False)
     last_status_change = Column(DateTime, nullable=True)
+    trade = Column(String, nullable=True)  # e.g. "Painter" — set ONLY by the manager from the console
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     tasks = relationship("Task", back_populates="worker")
@@ -125,3 +126,12 @@ class Message(Base):
     translated_text = Column(Text, nullable=True)
     translated_lang = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class FloorPlan(Base):
+    """One imported floor plan per floor label (replaces the console's generic layout)."""
+    __tablename__ = "floor_plans"
+    floor = Column(String, primary_key=True)          # matches the console's floor label, e.g. "2"
+    plan_json = Column(Text, nullable=False)          # clean walls JSON from app.floorplan
+    source_name = Column(String, nullable=True)       # original filename
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

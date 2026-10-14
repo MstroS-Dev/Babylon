@@ -91,6 +91,14 @@
   .chan-dot.whatsapp{background:var(--wa-color);}
   .w-info{flex:1;min-width:0;}
   .w-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .w-trade{display:inline-block;margin-top:4px;font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;
+    color:var(--accent-2);background:transparent;border:1px solid var(--border);border-radius:10px;padding:1px 8px;cursor:pointer;}
+  .w-trade:hover{border-color:var(--accent-dim);}
+  .w-trade.empty{color:var(--text-faint);border-style:dashed;}
+  .w-trade-input{margin-top:4px;width:100%;font-family:var(--font-mono);font-size:11px;background:var(--panel);color:var(--text);
+    border:1px solid var(--accent-dim);border-radius:8px;padding:3px 7px;}
+  #crew-filter{margin:8px 10px 0;width:calc(100% - 20px);background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);
+    border-radius:8px;padding:5px 8px;font-size:11.5px;font-family:inherit;display:none;}
   .w-meta{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:1px;}
   .quick-add{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);background:transparent;
     color:var(--text-dim);font-size:15px;line-height:1;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;}
@@ -148,6 +156,36 @@
   #ws-cancel-btn{background:transparent;color:var(--text-faint);border:1px solid var(--border);
     border-radius:7px;padding:6px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;}
   #ws-cancel-btn:hover{color:var(--text-dim);border-color:var(--text-faint);}
+
+  #plan-import-btn{position:absolute;top:16px;right:22px;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text-dim);border-radius:8px;padding:7px 12px;font-size:11.5px;font-family:var(--font-mono);cursor:pointer;z-index:4;}
+  #plan-import-btn:hover{border-color:var(--accent-dim);color:var(--accent);}
+
+  /* ---------- Floor-plan import ---------- */
+  #plan-overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;
+    align-items:center;justify-content:center;z-index:55;}
+  #plan-overlay.open{display:flex;}
+  #plan-modal{width:620px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  #plan-modal .ph{padding:18px 20px 12px;border-bottom:1px solid var(--border);}
+  #plan-modal .ph .t1{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;}
+  #plan-modal .ph .t2{font-size:15px;font-weight:600;margin-top:3px;}
+  #plan-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+  #plan-body select,#plan-body input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;}
+  #plan-body input[type=file]{font-size:12px;color:var(--text-dim);}
+  .plan-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  #plan-msg{font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);line-height:1.5;}
+  #plan-msg.err{color:#ff7a7a;}
+  #plan-layers{display:flex;flex-direction:column;gap:4px;max-height:170px;overflow-y:auto;border:1px solid var(--border);
+    border-radius:8px;padding:6px 8px;background:var(--panel-2);}
+  #plan-layers label{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text);cursor:pointer;}
+  #plan-layers .meta{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);white-space:nowrap;}
+  #plan-canvas{width:100%;height:240px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;display:block;}
+  #plan-stats{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
+  #plan-warn{font-family:var(--font-mono);font-size:11px;color:var(--accent-2);}
+  #plan-foot{padding:0 20px 20px;display:flex;gap:10px;}
+  #plan-reset{flex:none;}
 
   /* ---------- Task modal ---------- */
   #overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;
@@ -307,6 +345,8 @@
       <h1>Crew</h1>
       <p>Drag a worker onto the building to pin their next task. Tap + for a task with no fixed location.</p>
     </div>
+    <select id="crew-filter" title="Show only one trade"></select>
+    <datalist id="trade-list"></datalist>
     <div id="crew-list"><div id="crew-empty">No workers registered yet.</div></div>
     <div id="crew-foot"><span id="crew-count">0 workers</span><button id="add-worker-btn" title="Add WhatsApp worker">+</button></div>
   </div>
@@ -315,6 +355,7 @@
     <div id="canvas-holder"></div>
     <div id="stage-caption">Drag to orbit · Scroll to zoom · <b>Drop a worker on a floor to place a task</b></div>
     <div id="floor-rail"><button id="rail-add" title="Add floor">+</button></div>
+    <button id="plan-import-btn" title="Import a floor plan from CAD (DXF or vector PDF)">Import floor plan</button>
     <div id="wall-select-bar">
       <div id="ws-mode-seg">
         <button data-mode="segments" class="sel" title="Click one segment, Ctrl/Cmd-drag for a range">Segments</button>
@@ -325,6 +366,48 @@
       <button id="ws-done-btn">Done</button>
     </div>
     <div id="hint"></div>
+  </div>
+</div>
+
+<div id="plan-overlay">
+  <div id="plan-modal">
+    <div class="ph"><div class="t1">Floor plan</div><div class="t2">Import from CAD</div></div>
+    <div id="plan-body">
+      <div class="plan-row">
+        <label style="font-size:12px;color:var(--text-dim);">Floor</label>
+        <select id="plan-floor"></select>
+        <input type="file" id="plan-file" accept=".dxf,.pdf,.dwg,application/pdf">
+      </div>
+      <div id="plan-msg">Upload a <b>.dxf</b> (best) or a vector <b>.pdf</b> exported from your CAD tool. For a .dwg, use Save As → DXF in your CAD tool first.</div>
+      <div id="plan-options" style="display:none;flex-direction:column;gap:12px;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
+            Which <span id="plan-group-hint">layers</span> are the walls?</div>
+          <div id="plan-layers"></div>
+        </div>
+        <div class="plan-row">
+          <span id="plan-pdf-opts" style="display:none;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);">
+            Drawing scale 1 : <input type="number" id="plan-scale" value="100" min="1" step="1" style="width:80px;">
+            <span id="plan-page-wrap" style="display:none;">Page <select id="plan-page"></select></span>
+          </span>
+          <span id="plan-dxf-opts" style="display:none;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);">
+            Units <select id="plan-units"><option value="">Auto (from file)</option><option value="mm">mm</option>
+            <option value="cm">cm</option><option value="m">m</option><option value="in">inches</option><option value="ft">feet</option></select>
+            <span id="plan-units-note" style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);"></span>
+          </span>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
+            <input type="checkbox" id="plan-merge" checked> Merge double-line walls into one wall</label>
+        </div>
+        <canvas id="plan-canvas" width="580" height="240"></canvas>
+        <div id="plan-stats"></div>
+        <div id="plan-warn"></div>
+      </div>
+    </div>
+    <div id="plan-foot">
+      <button class="btn btn-ghost" id="plan-reset" style="display:none;">Use generic layout</button>
+      <button class="btn btn-ghost" id="plan-cancel">Cancel</button>
+      <button class="btn btn-primary" id="plan-save" disabled>Save floor plan</button>
+    </div>
   </div>
 </div>
 
@@ -498,15 +581,74 @@ function toast(msg){
 }
 
 // ---------------- Crew list ----------------
+const DEFAULT_TRADES = ['Foreman','Engineer','Electrician','Plumber','Carpenter','Mason','Plasterer','Painter','Tiler','Welder','HVAC','Laborer'];
+let crewTradeFilter = '';
+
+function refreshTradeControls(){
+  const used = [...new Set(workers.map(w=>w.trade).filter(Boolean))];
+  const dl = document.getElementById('trade-list');
+  dl.innerHTML = '';
+  [...new Set([...used, ...DEFAULT_TRADES])].forEach(t=>{ const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
+  const sel = document.getElementById('crew-filter');
+  if(!used.length){ sel.style.display = 'none'; crewTradeFilter = ''; return; }
+  if(crewTradeFilter && !used.includes(crewTradeFilter)) crewTradeFilter = '';
+  sel.innerHTML = '';
+  const all = document.createElement('option'); all.value = ''; all.textContent = 'All trades'; sel.appendChild(all);
+  used.sort().forEach(t=>{ const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+  sel.value = crewTradeFilter;
+  sel.style.display = 'block';
+}
+document.getElementById('crew-filter').addEventListener('change', e=>{ crewTradeFilter = e.target.value; renderCrew(); });
+
+async function saveTrade(w, value){
+  try{
+    const fd = new FormData(); fd.append('trade', value);
+    const r = await fetch(API + '/workers/' + w.id + '/trade', { method: 'PUT', body: fd });
+    if(!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    w.trade = j.trade;
+    toast(j.trade ? `${w.name} is now: ${j.trade}` : `Trade cleared for ${w.name}`);
+  }catch(err){
+    console.error(err);
+    toast('Could not save the trade');
+  }
+  renderCrew();
+}
+
+function editTrade(card, w){
+  const chip = card.querySelector('.w-trade');
+  if(!chip) return;
+  card.draggable = false;                       // otherwise the browser drags instead of selecting text
+  const input = document.createElement('input');
+  input.className = 'w-trade-input'; input.setAttribute('list', 'trade-list');
+  input.maxLength = 40; input.placeholder = 'e.g. Painter'; input.value = w.trade || '';
+  chip.replaceWith(input);
+  input.focus(); input.select();
+  let done = false;
+  const finish = (save)=>{
+    if(done) return; done = true;
+    if(save && input.value.trim() !== (w.trade || '')) saveTrade(w, input.value);
+    else renderCrew();
+  };
+  input.addEventListener('keydown', e=>{
+    if(e.key === 'Enter') finish(true);
+    else if(e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', ()=> finish(true));
+  input.addEventListener('click', e=> e.stopPropagation());
+}
+
 function renderCrew(){
   const list = document.getElementById('crew-list');
+  if(document.querySelector('.w-trade-input')) return;   // don't wipe a trade being typed (15s refresh)
+  refreshTradeControls();
   document.getElementById('crew-count').textContent = workers.length + (workers.length===1?' worker':' workers');
   if(!workers.length){
     list.innerHTML = '<div id="crew-empty">No workers registered yet.</div>';
     return;
   }
   list.innerHTML = '';
-  workers.forEach(w=>{
+  workers.filter(w=> !crewTradeFilter || w.trade === crewTradeFilter).forEach(w=>{
     const card = document.createElement('div');
     card.className = 'worker-card';
     card.draggable = true;
@@ -517,6 +659,7 @@ function renderCrew(){
       <div class="w-info">
         <div class="w-name">${escapeHtml(w.name)}</div>
         <div class="w-meta">${w.language} · ${w.channel} · <span style="color:${w.checked_in ? '#1B5E20' : '#999'}">${w.checked_in ? '🟢 On shift' : '⚪ Off shift'}</span></div>
+        <button class="w-trade${w.trade ? '' : ' empty'}" title="Set this worker's trade (only you can)">${w.trade ? escapeHtml(w.trade) : '+ trade'}</button>
       </div>
       <button class="quick-add" title="Assign task without a location">+</button>
       <button class="remove-worker" title="Remove worker">&#10005;</button>`;
@@ -534,10 +677,11 @@ function renderCrew(){
       setTimeout(()=>{ dragStarted = false; }, 50);
     });
     card.addEventListener('click', (e)=>{
-      if(e.target.closest('.quick-add') || e.target.closest('.remove-worker')) return;
+      if(e.target.closest('.quick-add') || e.target.closest('.remove-worker') || e.target.closest('.w-trade') || e.target.closest('.w-trade-input')) return;
       if(dragStarted) return;
       openTaskPanel(w);
     });
+    card.querySelector('.w-trade').addEventListener('click', (e)=>{ e.stopPropagation(); editTrade(card, w); });
     card.querySelector('.quick-add').addEventListener('click', (e)=>{
       e.stopPropagation();
       pendingPlacement = null;
@@ -809,6 +953,7 @@ function makeDefaultFloorPlan(){
     const distMinus = Math.hypot(midx - nx*0.01, midz - nz*0.01);
     if(distMinus > distPlus){ nx = -nx; nz = -nz; }
     w.normal = { x: nx, z: nz };
+    w.thick = WALL_T; w.mScale = 1;
   });
   return { walls };
 }
@@ -818,10 +963,56 @@ function wallSegCenter(wall, segIdx){
   return { x: wall.x1 + (wall.x2-wall.x1)*tm, z: wall.z1 + (wall.z2-wall.z1)*tm };
 }
 
+let serverPlans = {};   // floor label -> imported plan JSON from the server
+
+function orientNormal(w){
+  let nx = -w.dir.z, nz = w.dir.x;
+  const midx = (w.x1+w.x2)/2, midz = (w.z1+w.z2)/2;
+  const distPlus  = Math.hypot(midx + nx*0.01, midz + nz*0.01);
+  const distMinus = Math.hypot(midx - nx*0.01, midz - nz*0.01);
+  if(distMinus > distPlus){ nx = -nx; nz = -nz; }
+  w.normal = { x: nx, z: nz };
+}
+
+// Imported plans are in real metres; fit them into the fixed floor slab (keeps pins/camera unchanged)
+// and remember the scale so labels can still speak in real metres.
+function planFromServer(sp){
+  const fw = sp.bounds.w + 0.5, fd = sp.bounds.d + 0.5;
+  const sc = Math.min((FLOOR_W-1.0)/fw, (FLOOR_D-1.0)/fd);
+  let total = 0;
+  sp.walls.forEach(k=> total += Math.hypot(k.x2-k.x1, k.z2-k.z1));
+  const segM = Math.max(1.0, total/600);          // ~1 m segments, capped to keep the scene light
+  const walls = sp.walls.map(k=>{
+    const x1=k.x1*sc, z1=k.z1*sc, x2=k.x2*sc, z2=k.z2*sc;
+    const dx=x2-x1, dz=z2-z1, len=Math.hypot(dx,dz) || 1e-6;
+    const w = { id:k.id, x1,z1,x2,z2, len, dir:{x:dx/len, z:dz/len},
+                thick: Math.max(WALL_T*0.5, k.t*sc), mScale: 1/sc, imported:true };
+    w.segCount = Math.max(1, Math.round((len/sc)/segM));
+    orientNormal(w);
+    return w;
+  });
+  return { walls, imported:true };
+}
+
+function importedWallName(w){
+  const mx=(w.x1+w.x2)/2, mz=(w.z1+w.z2)/2;
+  const nx = mx/(FLOOR_W/2), nz = mz/(FLOOR_D/2);
+  if(Math.max(Math.abs(nx), Math.abs(nz)) < 0.35) return `interior wall ${w.id}`;
+  const side = Math.abs(nz) >= Math.abs(nx) ? (nz<0?'north':'south') : (nx<0?'west':'east');
+  return `${side}-side wall ${w.id}`;
+}
+
 const WALL_NAMES = { N:'north wall', E:'east wall', S:'south wall', W:'west wall',
                      I1:'interior partition (front-back)', I2:'interior partition (left-right)' };
 function wallRangeLabel(floorIdx, wallId, from, to){
   const wall = floorPlans[floorIdx].walls.find(w=>w.id===wallId);
+  if(wall.imported){
+    const nm = importedWallName(wall);
+    if(to - from + 1 >= wall.segCount) return `the whole ${nm}`;
+    const segM = wall.len * wall.mScale / wall.segCount;
+    const endName = Math.abs(wall.dir.x) < 1e-6 ? 'north' : 'west';   // seg 0 starts at the north/west end
+    return `${nm} \u2014 ${(from*segM).toFixed(1)}\u2013${((to+1)*segM).toFixed(1)} m from its ${endName} end`;
+  }
   const name = WALL_NAMES[wallId] || ('wall '+wallId);
   if(to - from + 1 >= wall.segCount) return `the whole ${name}`;
   const midFrac = ((from+to)/2 + 0.5) / wall.segCount;
@@ -831,7 +1022,7 @@ function wallRangeLabel(floorIdx, wallId, from, to){
 }
 
 function buildFloors(){
-  floorMeshes.forEach(f=>scene.remove(f.mesh));
+  floorMeshes.forEach(f=>{ scene.remove(f.mesh); if(f.grid) scene.remove(f.grid); (f.cols||[]).forEach(c=>scene.remove(c)); });
   floorMeshes = [];
   if(wallGroup){ wallGroup.clear(); }
   wallSegMeshes = [];
@@ -854,6 +1045,7 @@ function buildFloors(){
     scene.add(grid);
 
     // support columns at corners (skip ground)
+    const cols = [];
     if(idx > 0){
       [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
         const col = new THREE.Mesh(
@@ -862,18 +1054,20 @@ function buildFloors(){
         );
         col.position.set(sx*(FLOOR_W/2-0.4), y-(FLOOR_H+0.9)/2, sz*(FLOOR_D/2-0.4));
         scene.add(col);
+        cols.push(col);
       });
     }
 
     buildWallsForFloor(idx, y);
 
-    floorMeshes.push({mesh, grid, idx, label});
+    floorMeshes.push({mesh, grid, idx, label, cols});
   });
   buildRail();
 }
 
 function buildWallsForFloor(floorIdx, y){
-  const plan = makeDefaultFloorPlan();
+  const sp = serverPlans[floors[floorIdx]];
+  const plan = sp ? planFromServer(sp) : makeDefaultFloorPlan();
   floorPlans[floorIdx] = plan;
   plan.walls.forEach(wall=>{
     for(let s=0; s<wall.segCount; s++){
@@ -883,7 +1077,7 @@ function buildWallsForFloor(floorIdx, y){
       const c1z = wall.z1 + (wall.z2-wall.z1) * ((s+1)/wall.segCount);
       const segLen = Math.hypot(c1x-c0x, c1z-c0z);
       const cx = (c0x+c1x)/2, cz = (c0z+c1z)/2;
-      const geo = new THREE.BoxGeometry(segLen*1.01, WALL_H, WALL_T);
+      const geo = new THREE.BoxGeometry(segLen*1.01, WALL_H, wall.thick || WALL_T);
       const mat = new THREE.MeshStandardMaterial({
         color: 0xcfd8e0, transparent:true, opacity:0.94, roughness:0.9, side: THREE.DoubleSide
       });
@@ -1192,7 +1386,7 @@ function openModal(worker, defaultMode){
   modalMode = defaultMode;
   clearWallSelection();
   document.getElementById('workspace-field').style.display = pendingPlacement ? 'block' : 'none';
-  document.getElementById('modal-worker-name').textContent = worker.name;
+  document.getElementById('modal-worker-name').textContent = worker.name + (worker.trade ? ' \u00b7 ' + worker.trade : '');
   document.getElementById('modal-avatar').innerHTML = worker.photo_url
     ? `<img src="${worker.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
     : PERSON_SVG;
@@ -1335,6 +1529,185 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
   }
 });
 
+// ==================================================================
+// Floor-plan import (DXF / vector PDF -> real walls)
+// ==================================================================
+let planFile = null, planResult = null, planLayersSel = null, planTimer = null, planReq = 0;
+const $p = id => document.getElementById(id);
+
+async function loadFloorPlans(){
+  try{
+    const r = await fetch(API + '/floorplans');
+    if(!r.ok) return;
+    serverPlans = await r.json();
+    if(scene){ clearWallSelection(); buildFloors(); }
+  }catch(e){ console.error('floor plans', e); }
+}
+
+function planFloorLabel(){ return floors[Number($p('plan-floor').value)]; }
+
+function refreshPlanFloorUI(){
+  $p('plan-reset').style.display = serverPlans[planFloorLabel()] ? 'block' : 'none';
+}
+
+function openPlanModal(){
+  planFile = null; planResult = null; planLayersSel = null;
+  $p('plan-file').value = '';
+  const sel = $p('plan-floor');
+  sel.innerHTML = '';
+  floors.forEach((l, i)=>{ const o = document.createElement('option'); o.value = i; o.textContent = l + (serverPlans[l] ? ' \u2713' : ''); sel.appendChild(o); });
+  sel.value = selectedFloorIdx;
+  $p('plan-options').style.display = 'none';
+  $p('plan-save').disabled = true;
+  setPlanMsg('Upload a <b>.dxf</b> (best) or a vector <b>.pdf</b> exported from your CAD tool. For a .dwg, use Save As \u2192 DXF in your CAD tool first.', false);
+  refreshPlanFloorUI();
+  $p('plan-overlay').classList.add('open');
+}
+function closePlanModal(){ $p('plan-overlay').classList.remove('open'); }
+function setPlanMsg(html, isErr){ const m = $p('plan-msg'); m.innerHTML = html; m.classList.toggle('err', !!isErr); }
+function escHtml(t){ return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function planFormData(){
+  const fd = new FormData();
+  fd.append('file', planFile);
+  if(planLayersSel) fd.append('layers', JSON.stringify(planLayersSel));
+  if(planResult && planResult.kind === 'pdf'){
+    fd.append('scale', $p('plan-scale').value || '100');
+    if($p('plan-page').value) fd.append('page', $p('plan-page').value);
+  } else if($p('plan-units').value){
+    fd.append('units', $p('plan-units').value);
+  }
+  fd.append('merge_pairs', $p('plan-merge').checked ? 'true' : 'false');
+  return fd;
+}
+
+async function runPlanPreview(){
+  if(!planFile) return;
+  const myReq = ++planReq;
+  setPlanMsg('Reading file\u2026', false);
+  $p('plan-save').disabled = true;
+  try{
+    const r = await fetch(API + '/floorplans/preview', {method:'POST', body: planFormData()});
+    if(myReq !== planReq) return;                    // a newer request superseded this one
+    if(!r.ok){
+      let d = 'Upload failed'; try{ d = (await r.json()).detail || d; }catch(_){}
+      $p('plan-options').style.display = 'none';
+      setPlanMsg(escHtml(d), true);
+      return;
+    }
+    planResult = await r.json();
+    if(!planLayersSel) planLayersSel = planResult.layers.filter(l=>l.preselected).map(l=>l.name);
+    renderPlanPreview();
+  }catch(e){
+    if(myReq === planReq) setPlanMsg('Could not reach the server.', true);
+    console.error(e);
+  }
+}
+function schedulePlanPreview(){ clearTimeout(planTimer); planTimer = setTimeout(runPlanPreview, 350); }
+
+function renderPlanPreview(){
+  const res = planResult;
+  $p('plan-options').style.display = 'flex';
+  $p('plan-group-hint').textContent = res.group_hint;
+  $p('plan-pdf-opts').style.display = res.kind === 'pdf' ? 'flex' : 'none';
+  $p('plan-dxf-opts').style.display = res.kind === 'dxf' ? 'flex' : 'none';
+  $p('plan-units-note').textContent = res.kind === 'dxf' ? `detected: ${res.units_note}` : '';
+  const pw = $p('plan-page-wrap');
+  if(res.kind === 'pdf' && res.page_count > 1 && !pw.dataset.built){
+    const ps = $p('plan-page'); ps.innerHTML = '';
+    for(let i=0;i<res.page_count;i++){ const o=document.createElement('option'); o.value=i; o.textContent=i+1; ps.appendChild(o); }
+    pw.dataset.built = '1';
+  }
+  pw.style.display = (res.kind === 'pdf' && res.page_count > 1) ? 'inline' : 'none';
+
+  const box = $p('plan-layers'); box.innerHTML = '';
+  res.layers.forEach(l=>{
+    const lab = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = planLayersSel.includes(l.name);
+    cb.addEventListener('change', ()=>{
+      planLayersSel = Array.from(box.querySelectorAll('input')).filter(i=>i.checked).map(i=>i.dataset.name);
+      schedulePlanPreview();
+    });
+    cb.dataset.name = l.name;
+    const nm = document.createElement('span'); nm.textContent = l.name + (l.off ? ' (hidden in CAD)' : '');
+    const meta = document.createElement('span'); meta.className = 'meta'; meta.textContent = `${l.count} lines \u00b7 ${l.length_m} m`;
+    lab.append(cb, nm, meta); box.appendChild(lab);
+  });
+
+  const plan = res.plan;
+  if(!plan){
+    setPlanMsg(escHtml(res.error || 'No walls found.'), true);
+    $p('plan-stats').textContent = ''; $p('plan-warn').textContent = '';
+    drawPlanPreview(null);
+    $p('plan-save').disabled = true;
+    return;
+  }
+  setPlanMsg(`Read <b>${escHtml(plan.source.filename)}</b> \u2014 ${escHtml(plan.source.units_note)}.`, false);
+  $p('plan-stats').textContent = `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall`;
+  $p('plan-warn').textContent = (plan.warnings || []).join(' ');
+  drawPlanPreview(plan);
+  $p('plan-save').disabled = false;
+}
+
+function drawPlanPreview(plan){
+  const cv = $p('plan-canvas'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  if(!plan) return;
+  const m = 18;
+  const sc = Math.min((W-2*m)/Math.max(plan.bounds.w,0.1), (H-2*m)/Math.max(plan.bounds.d,0.1));
+  const cs = getComputedStyle(document.documentElement);
+  const col = (cs.getPropertyValue('--accent') || '#ff6a1f').trim();
+  ctx.strokeStyle = col; ctx.lineCap = 'butt';
+  plan.walls.forEach(w=>{
+    ctx.lineWidth = Math.max(1.5, w.t * sc);
+    ctx.beginPath();
+    ctx.moveTo(W/2 + w.x1*sc, H/2 + w.z1*sc);
+    ctx.lineTo(W/2 + w.x2*sc, H/2 + w.z2*sc);
+    ctx.stroke();
+  });
+}
+
+document.getElementById('plan-import-btn').addEventListener('click', openPlanModal);
+$p('plan-cancel').addEventListener('click', closePlanModal);
+$p('plan-overlay').addEventListener('click', e=>{ if(e.target.id === 'plan-overlay') closePlanModal(); });
+$p('plan-floor').addEventListener('change', refreshPlanFloorUI);
+$p('plan-file').addEventListener('change', e=>{
+  planFile = e.target.files[0] || null;
+  planLayersSel = null; planResult = null; $p('plan-page-wrap').dataset.built = '';
+  if(planFile) runPlanPreview();
+});
+['plan-scale','plan-units','plan-merge','plan-page'].forEach(id=> $p(id).addEventListener('change', schedulePlanPreview));
+$p('plan-scale').addEventListener('input', schedulePlanPreview);
+
+$p('plan-save').addEventListener('click', async ()=>{
+  if(!planFile) return;
+  const label = planFloorLabel();
+  const btn = $p('plan-save'); btn.disabled = true; btn.textContent = 'Saving\u2026';
+  try{
+    const r = await fetch(API + '/floorplans/' + encodeURIComponent(label), {method:'PUT', body: planFormData()});
+    if(!r.ok){ let d='Save failed'; try{ d=(await r.json()).detail||d; }catch(_){} setPlanMsg(escHtml(d), true); return; }
+    const j = await r.json();
+    serverPlans[label] = j.plan;
+    clearWallSelection(); buildFloors();
+    focusFloor(Number($p('plan-floor').value));
+    closePlanModal();
+    toast(`Floor ${label} now uses the imported plan (${j.plan.stats.walls} walls)`);
+  }catch(e){ setPlanMsg('Could not reach the server.', true); console.error(e); }
+  finally{ btn.disabled = false; btn.textContent = 'Save floor plan'; }
+});
+$p('plan-reset').addEventListener('click', async ()=>{
+  const label = planFloorLabel();
+  if(!confirm(`Go back to the generic layout for floor ${label}?`)) return;
+  try{
+    await fetch(API + '/floorplans/' + encodeURIComponent(label), {method:'DELETE'});
+    delete serverPlans[label];
+    clearWallSelection(); buildFloors();
+    closePlanModal();
+    toast(`Floor ${label} is back to the generic layout`);
+  }catch(e){ toast('Could not reset the plan'); }
+});
+
 // ---------------- boot ----------------
 loadWorkers();
 loadTasks();
@@ -1342,6 +1715,7 @@ connectWs();
 setInterval(loadWorkers, 15000);
 try{
   initScene();
+  loadFloorPlans();
 }catch(e){
   console.error('3D building view failed to load:', e);
   document.getElementById('canvas-holder').innerHTML =
