@@ -378,7 +378,7 @@
         <select id="plan-floor"></select>
         <input type="file" id="plan-file" accept=".dxf,.pdf,.dwg,application/pdf">
       </div>
-      <div id="plan-msg">Upload a <b>.dxf</b> (best) or a vector <b>.pdf</b> exported from your CAD tool. For a .dwg, use Save As → DXF in your CAD tool first.</div>
+      <div id="plan-msg">Upload your CAD file: <b>.dwg</b>, <b>.dxf</b> or a vector <b>.pdf</b> exported from CAD.</div>
       <div id="plan-options" style="display:none;flex-direction:column;gap:12px;">
         <div>
           <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
@@ -1559,7 +1559,7 @@ function openPlanModal(){
   sel.value = selectedFloorIdx;
   $p('plan-options').style.display = 'none';
   $p('plan-save').disabled = true;
-  setPlanMsg('Upload a <b>.dxf</b> (best) or a vector <b>.pdf</b> exported from your CAD tool. For a .dwg, use Save As \u2192 DXF in your CAD tool first.', false);
+  setPlanMsg('Upload your CAD file: <b>.dwg</b>, <b>.dxf</b> or a vector <b>.pdf</b> exported from CAD.', false);
   refreshPlanFloorUI();
   $p('plan-overlay').classList.add('open');
 }

@@ -15,11 +15,15 @@ picker snaps to.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import math
 import os
 import re
+import shutil
+import subprocess
 import tempfile
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
 PLAN_VERSION = 1
@@ -47,21 +51,77 @@ def detect_kind(filename: str, data: bytes) -> str:
     name = (filename or "").lower()
     if data[:4] == b"%PDF" or name.endswith(".pdf"):
         return "pdf"
-    if name.endswith(".dwg") or data[:2] == b"AC":
-        raise PlanError(
-            "DWG is a proprietary CAD format and can't be read directly. In your CAD tool use "
-            "Save As / Export -> DXF (any recent version, e.g. 2018 ASCII DXF), then upload the .dxf. "
-            "Or export the plan as a vector PDF.")
-    if name.endswith(".dxf") or data[:200].lstrip().startswith((b"0\r\nSECTION", b"0\nSECTION", b"  0")):
+    if name.endswith(".dwg") or (data[:2] == b"AC" and data[2:6].isdigit()):
+        return "dwg"
+    if name.endswith(".dxf") or data[:200].lstrip().startswith((b"0\r\nSECTION", b"0\nSECTION", b"  0", b"999")):
         return "dxf"
-    raise PlanError("Unsupported file. Upload a .dxf (preferred) or a vector PDF exported from CAD.")
+    raise PlanError("Unsupported file. Upload a .dwg, a .dxf or a vector .pdf exported from CAD.")
+
+
+# --------------------------------------------------------------------------
+# DWG -> DXF via LibreDWG's `dwg2dxf` (GPL; run as a separate program, not linked)
+# --------------------------------------------------------------------------
+_DWG_MISSING = ("This server can't read .dwg files yet (the converter isn't installed). "
+                "Either upload a .dxf (CAD: Save As -> DXF), or on the server run: "
+                "cd /opt/site-comms && ./tools/install-dwg-support.sh")
+
+
+def dwg2dxf_path() -> Optional[str]:
+    cands = [os.environ.get("DWG2DXF_BIN"),
+             os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin", "dwg2dxf"),
+             shutil.which("dwg2dxf")]
+    for c in cands:
+        if c and os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    return None
+
+
+def dwg_to_dxf(data: bytes, timeout: int = 240) -> bytes:
+    exe = dwg2dxf_path()
+    if not exe:
+        raise PlanError(_DWG_MISSING)
+    with tempfile.TemporaryDirectory() as d:
+        src, dst = os.path.join(d, "in.dwg"), os.path.join(d, "out.dxf")
+        with open(src, "wb") as f:
+            f.write(data)
+        try:
+            proc = subprocess.run([exe, "-y", "-o", dst, src], capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise PlanError("Converting this DWG took too long. Export it as DXF from your CAD tool instead.")
+        if not os.path.isfile(dst) or os.path.getsize(dst) < 500:
+            tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or ["no output"]
+            raise PlanError("Couldn't convert this DWG (" + tail[0][:120] + "). "
+                            "Export it as DXF from your CAD tool (Save As -> DXF) and upload that.")
+        with open(dst, "rb") as f:
+            return f.read()
+
+
+_RAW_CACHE: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+_RAW_CACHE_MAX = 3
 
 
 def extract_segments(filename: str, data: bytes, page: int = 0) -> Dict[str, Any]:
+    """Parse once per distinct upload: the console re-requests a preview every time the manager
+    toggles a layer or changes the scale, so the (slow) parse result is cached by content hash."""
+    key = hashlib.sha256(data).hexdigest() + f":{page}"
+    hit = _RAW_CACHE.get(key)
+    if hit is not None:
+        _RAW_CACHE.move_to_end(key)
+        return hit
     kind = detect_kind(filename, data)
-    raw = _extract_dxf(data) if kind == "dxf" else _extract_pdf(data, page)
+    origin = kind
+    if kind == "dwg":
+        raw = _extract_dxf(dwg_to_dxf(data))
+    elif kind == "dxf":
+        raw = _extract_dxf(data)
+    else:
+        raw = _extract_pdf(data, page)
+    raw["origin"] = origin
     # ezdxf/PyMuPDF hand back numpy/own float types; keep everything plain Python
     raw["segments"] = [(str(l), float(a), float(b), float(c), float(d)) for l, a, b, c, d in raw["segments"]]
+    _RAW_CACHE[key] = raw
+    while len(_RAW_CACHE) > _RAW_CACHE_MAX:
+        _RAW_CACHE.popitem(last=False)
     return raw
 
 
@@ -461,7 +521,7 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
     return {
         "version": PLAN_VERSION,
         "units": "m",
-        "source": {"type": raw["kind"], "filename": filename, "layers": sorted(selected),
+        "source": {"type": raw.get("origin", raw["kind"]), "filename": filename, "layers": sorted(selected),
                    "units_note": unit_note, "page": raw.get("page", 0)},
         "bounds": {"w": round(width, 2), "d": round(depth, 2)},
         "walls": walls,

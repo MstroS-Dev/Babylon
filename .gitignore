@@ -12,3 +12,6 @@ android/app/build/
 android/local.properties
 *.iml
 .idea/
+
+# locally built CAD converter (see tools/install-dwg-support.sh)
+server/bin/
