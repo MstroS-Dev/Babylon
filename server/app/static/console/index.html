@@ -132,6 +132,23 @@
     font-size:10.5px;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--border);
     padding:6px 14px;border-radius:20px;pointer-events:none;transition:opacity .2s;}
 
+  #wall-select-bar{position:absolute;top:16px;left:50%;transform:translateX(-50%) translateY(-8px);
+    display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--accent-dim);
+    border-radius:10px;padding:8px 10px 8px 14px;opacity:0;pointer-events:none;
+    transition:opacity .15s, transform .15s;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:5;}
+  #wall-select-bar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
+  #ws-mode-seg{display:flex;gap:4px;}
+  #ws-mode-seg button{background:transparent;border:1px solid var(--border);color:var(--text-dim);
+    border-radius:7px;padding:5px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;}
+  #ws-mode-seg button.sel{border-color:var(--accent);color:var(--accent);background:rgba(255,106,31,.08);}
+  #wall-select-label{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;}
+  #ws-done-btn{background:var(--accent);color:#0b0f14;border:none;border-radius:7px;padding:6px 12px;
+    font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  #ws-done-btn:hover{filter:brightness(1.08);}
+  #ws-cancel-btn{background:transparent;color:var(--text-faint);border:1px solid var(--border);
+    border-radius:7px;padding:6px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;}
+  #ws-cancel-btn:hover{color:var(--text-dim);border-color:var(--text-faint);}
+
   /* ---------- Task modal ---------- */
   #overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;
     align-items:center;justify-content:center;z-index:50;}
@@ -162,6 +179,14 @@
     border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:8px;display:none;}
   #loc-readout.show{display:block;}
   #loc-readout b{color:var(--accent-2);}
+  #workspace-row{display:flex;align-items:center;gap:10px;}
+  #btn-mark-workspace{flex:none;background:var(--panel-2);border:1px solid var(--accent-dim);color:var(--accent);
+    border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;}
+  #btn-mark-workspace:hover{background:rgba(255,106,31,.08);}
+  #workspace-readout{flex:1;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);background:var(--panel-2);
+    border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:none;}
+  #workspace-readout.show{display:block;}
+  #workspace-readout b{color:var(--accent-2);}
 
   #modal-foot{padding:14px 20px 20px;display:flex;gap:10px;}
   .btn{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);font-family:var(--font-body);
@@ -290,6 +315,15 @@
     <div id="canvas-holder"></div>
     <div id="stage-caption">Drag to orbit · Scroll to zoom · <b>Drop a worker on a floor to place a task</b></div>
     <div id="floor-rail"><button id="rail-add" title="Add floor">+</button></div>
+    <div id="wall-select-bar">
+      <div id="ws-mode-seg">
+        <button data-mode="segments" class="sel" title="Click one segment, Ctrl/Cmd-drag for a range">Segments</button>
+        <button data-mode="whole" title="Click a wall to select all of it">Whole wall</button>
+      </div>
+      <span id="wall-select-label">Click a wall to mark the workspace</span>
+      <button id="ws-cancel-btn">Cancel</button>
+      <button id="ws-done-btn">Done</button>
+    </div>
     <div id="hint"></div>
   </div>
 </div>
@@ -325,6 +359,13 @@
           <button data-mode="photo_checkin"><b>Photo check-in</b>you approve on arrival</button>
         </div>
         <div id="loc-readout"></div>
+      </div>
+      <div class="field" id="workspace-field" style="display:none;">
+        <label>Workspace <span style="text-transform:none;color:var(--text-faint);">(optional — mark the exact wall stretch)</span></label>
+        <div id="workspace-row">
+          <button type="button" id="btn-mark-workspace">Mark workspace</button>
+          <div id="workspace-readout"></div>
+        </div>
       </div>
       <div class="field" id="note-field" style="display:none;">
         <label>Spot description <span style="text-transform:none;color:var(--text-faint);">(optional, sent to worker)</span></label>
@@ -696,6 +737,11 @@ function setStatus(live){
 // 3D building
 // ==================================================================
 let scene, camera, renderer, raycaster, floorMeshes = [], pinGroup, ghostSprite;
+let wallGroup, wallSegMeshes = [], floorPlans = {};
+let selectedWall = null; // { floorIdx, wallId, from, to }
+let dragSelecting = false, dragSelectAnchor = null;
+let workspaceSelectMode = false, wallSelectWholeMode = false;
+let _wallScratchVec = null;
 let camYaw = 0.6, camPitch = 0.5, camDist = 34;
 const FLOOR_H = 3.2, FLOOR_W = 14, FLOOR_D = 10;
 
@@ -719,6 +765,10 @@ function initScene(){
   pinGroup = new THREE.Group();
   scene.add(pinGroup);
 
+  wallGroup = new THREE.Group();
+  scene.add(wallGroup);
+  _wallScratchVec = new THREE.Vector3();
+
   raycaster = new THREE.Raycaster();
   buildFloors();
   updateCamera();
@@ -732,9 +782,59 @@ function initScene(){
 
 function floorY(idx){ return idx * (FLOOR_H + 0.9); }
 
+const SEG_LEN = 1.1;           // target length per wall segment
+const WALL_H = FLOOR_H - 0.4;
+const WALL_T = 0.16;           // wall thickness
+
+function makeDefaultFloorPlan(){
+  const hw = FLOOR_W/2, hd = FLOOR_D/2;
+  const walls = [
+    { id:'N',  x1:-hw,      z1:-hd,      x2: hw,      z2:-hd },
+    { id:'E',  x1: hw,      z1:-hd,      x2: hw,      z2: hd },
+    { id:'S',  x1: hw,      z1: hd,      x2:-hw,      z2: hd },
+    { id:'W',  x1:-hw,      z1: hd,      x2:-hw,      z2:-hd },
+    { id:'I1', x1:-hw*0.15, z1:-hd,      x2:-hw*0.15, z2: hd*0.25 },
+    { id:'I2', x1:-hw*0.15, z1: hd*0.25, x2: hw*0.6,  z2: hd*0.25 },
+  ];
+  walls.forEach(w=>{
+    const dx = w.x2-w.x1, dz = w.z2-w.z1;
+    const len = Math.hypot(dx, dz);
+    w.segCount = Math.max(1, Math.round(len / SEG_LEN));
+    w.len = len;
+    w.dir = { x: dx/len, z: dz/len };
+    let nx = -dz/len, nz = dx/len;
+    // orient outward: the side farther from the floor centre
+    const midx = (w.x1+w.x2)/2, midz = (w.z1+w.z2)/2;
+    const distPlus  = Math.hypot(midx + nx*0.01, midz + nz*0.01);
+    const distMinus = Math.hypot(midx - nx*0.01, midz - nz*0.01);
+    if(distMinus > distPlus){ nx = -nx; nz = -nz; }
+    w.normal = { x: nx, z: nz };
+  });
+  return { walls };
+}
+
+function wallSegCenter(wall, segIdx){
+  const tm = (segIdx + 0.5) / wall.segCount;
+  return { x: wall.x1 + (wall.x2-wall.x1)*tm, z: wall.z1 + (wall.z2-wall.z1)*tm };
+}
+
+const WALL_NAMES = { N:'north wall', E:'east wall', S:'south wall', W:'west wall',
+                     I1:'interior partition (front-back)', I2:'interior partition (left-right)' };
+function wallRangeLabel(floorIdx, wallId, from, to){
+  const wall = floorPlans[floorIdx].walls.find(w=>w.id===wallId);
+  const name = WALL_NAMES[wallId] || ('wall '+wallId);
+  if(to - from + 1 >= wall.segCount) return `the whole ${name}`;
+  const midFrac = ((from+to)/2 + 0.5) / wall.segCount;
+  const third = midFrac < 0.34 ? 'left' : (midFrac > 0.66 ? 'right' : 'middle');
+  const metres = ((to-from+1) * (wall.len/wall.segCount)).toFixed(1);
+  return `${name} \u2014 ${third} section, about ${metres}m`;
+}
+
 function buildFloors(){
   floorMeshes.forEach(f=>scene.remove(f.mesh));
   floorMeshes = [];
+  if(wallGroup){ wallGroup.clear(); }
+  wallSegMeshes = [];
   floors.forEach((label, idx)=>{
     const y = floorY(idx);
     const geo = new THREE.BoxGeometry(FLOOR_W, 0.35, FLOOR_D);
@@ -765,9 +865,39 @@ function buildFloors(){
       });
     }
 
+    buildWallsForFloor(idx, y);
+
     floorMeshes.push({mesh, grid, idx, label});
   });
   buildRail();
+}
+
+function buildWallsForFloor(floorIdx, y){
+  const plan = makeDefaultFloorPlan();
+  floorPlans[floorIdx] = plan;
+  plan.walls.forEach(wall=>{
+    for(let s=0; s<wall.segCount; s++){
+      const c0x = wall.x1 + (wall.x2-wall.x1) * (s/wall.segCount);
+      const c0z = wall.z1 + (wall.z2-wall.z1) * (s/wall.segCount);
+      const c1x = wall.x1 + (wall.x2-wall.x1) * ((s+1)/wall.segCount);
+      const c1z = wall.z1 + (wall.z2-wall.z1) * ((s+1)/wall.segCount);
+      const segLen = Math.hypot(c1x-c0x, c1z-c0z);
+      const cx = (c0x+c1x)/2, cz = (c0z+c1z)/2;
+      const geo = new THREE.BoxGeometry(segLen*1.01, WALL_H, WALL_T);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xcfd8e0, transparent:true, opacity:0.94, roughness:0.9, side: THREE.DoubleSide
+      });
+      const seg = new THREE.Mesh(geo, mat);
+      seg.position.set(cx, y + WALL_H/2 + 0.18, cz);
+      seg.rotation.y = -Math.atan2(wall.dir.z, wall.dir.x);
+      seg.userData = {
+        floorIdx, wallId: wall.id, segIdx: s,
+        normal: wall.normal, selected: false,
+      };
+      wallGroup.add(seg);
+      wallSegMeshes.push(seg);
+    }
+  });
 }
 
 function buildRail(){
@@ -804,26 +934,47 @@ function focusFloor(idx){
   targetPitch = 0.42;
   targetYaw = camYaw;
   targetLookY = floorY(idx);
+  targetLookX = 0; targetLookZ = 0;
   targetDist = 24;
 }
 
 let targetPitch = camPitch, targetYaw = camYaw, targetDist = camDist, targetLookY = floorY(2);
+let targetLookX = 0, targetLookZ = 0, currentLookX = 0, currentLookZ = 0;
 function updateCamera(){
   camYaw += (targetYaw - camYaw) * 0.08;
   camPitch += (targetPitch - camPitch) * 0.08;
   camDist += (targetDist - camDist) * 0.08;
   currentLookY += (targetLookY - currentLookY) * 0.08;
-  const x = camDist * Math.sin(camYaw) * Math.cos(camPitch);
-  const z = camDist * Math.cos(camYaw) * Math.cos(camPitch);
+  currentLookX += (targetLookX - currentLookX) * 0.08;
+  currentLookZ += (targetLookZ - currentLookZ) * 0.08;
+  const x = camDist * Math.sin(camYaw) * Math.cos(camPitch) + currentLookX;
+  const z = camDist * Math.cos(camYaw) * Math.cos(camPitch) + currentLookZ;
   const y = camDist * Math.sin(camPitch) + currentLookY;
   camera.position.set(x, y, z);
-  camera.lookAt(0, currentLookY, 0);
+  camera.lookAt(currentLookX, currentLookY, currentLookZ);
 }
 let currentLookY = floorY(2);
+
+// Walls between the camera and the interior fade out (X-ray); far walls stay solid.
+const NEAR_OPACITY = 0.08, FAR_OPACITY = 0.94, SELECTED_OPACITY = 0.94;
+function updateWallXray(){
+  if(!wallSegMeshes.length) return;
+  const camPos = camera.position;
+  wallSegMeshes.forEach(seg=>{
+    seg.getWorldPosition(_wallScratchVec);
+    const tx = camPos.x - _wallScratchVec.x, tz = camPos.z - _wallScratchVec.z;
+    const facing = tx * seg.userData.normal.x + tz * seg.userData.normal.z;
+    const sel = seg.userData.selected;
+    const targetOp = sel ? SELECTED_OPACITY : (facing > 0 ? NEAR_OPACITY : FAR_OPACITY);
+    seg.material.opacity += (targetOp - seg.material.opacity) * 0.15;
+    seg.material.color.setHex(sel ? 0xff6a1f : 0xcfd8e0);
+  });
+}
 
 function animate(){
   requestAnimationFrame(animate);
   updateCamera();
+  updateWallXray();
   renderer.render(scene, camera);
 }
 function onResize(){
@@ -835,8 +986,89 @@ function onResize(){
 
 // ---- orbit drag (only when not dragging a worker card) ----
 let orbiting = false, lastX=0, lastY=0;
+let clickStartX=0, clickStartY=0, clickCandidateSeg=null;
+
+function raycastWallFromEvent(e){
+  const rect = holderEl.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((e.clientX - rect.left)/rect.width)*2 - 1,
+    -((e.clientY - rect.top)/rect.height)*2 + 1
+  );
+  raycaster.setFromCamera(mouse, camera);
+  // only consider segments the camera can "see" (not faded out), so clicks pass through X-rayed walls
+  const hits = raycaster.intersectObjects(wallSegMeshes).filter(h=> h.object.material.opacity > 0.4);
+  return hits.length ? hits[0].object : null;
+}
+
+function refreshWallSelectionUI(){
+  const barLabel = document.getElementById('wall-select-label');
+  const readout = document.getElementById('workspace-readout');
+  if(selectedWall){
+    const txt = wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to);
+    const count = selectedWall.to - selectedWall.from + 1;
+    if(barLabel) barLabel.textContent = `Floor ${floors[selectedWall.floorIdx]} \u00b7 ${txt} (${count} seg)`;
+    if(readout){ readout.innerHTML = `Floor <b>${floors[selectedWall.floorIdx]}</b> \u00b7 ${txt}`; readout.classList.add('show'); }
+  } else {
+    if(barLabel) barLabel.textContent = wallSelectWholeMode ? 'Click a wall to select all of it' : 'Click a segment \u00b7 Ctrl/Cmd-drag for a range';
+    if(readout){ readout.textContent = ''; readout.classList.remove('show'); }
+  }
+}
+
+function clearWallSelection(){
+  wallSegMeshes.forEach(s=> s.userData.selected = false);
+  selectedWall = null;
+  refreshWallSelectionUI();
+}
+
+function applyWallSelection(floorIdx, wallId, from, to){
+  wallSegMeshes.forEach(s=>{
+    s.userData.selected = (s.userData.floorIdx===floorIdx && s.userData.wallId===wallId
+                           && s.userData.segIdx>=from && s.userData.segIdx<=to);
+  });
+  selectedWall = { floorIdx, wallId, from, to };
+  refreshWallSelectionUI();
+}
+
+function selectWallFromClick(seg){
+  const u = seg.userData;
+  if(wallSelectWholeMode){
+    const wall = floorPlans[u.floorIdx].walls.find(w=>w.id===u.wallId);
+    applyWallSelection(u.floorIdx, u.wallId, 0, wall.segCount-1);
+  } else {
+    applyWallSelection(u.floorIdx, u.wallId, u.segIdx, u.segIdx);
+  }
+}
+
+function onDragSelectMove(e){
+  if(!dragSelecting) return;
+  const seg = raycastWallFromEvent(e);
+  if(!seg || seg.userData.wallId !== dragSelectAnchor.wallId
+          || seg.userData.floorIdx !== dragSelectAnchor.floorIdx) return;
+  const from = Math.min(dragSelectAnchor.segIdx, seg.userData.segIdx);
+  const to   = Math.max(dragSelectAnchor.segIdx, seg.userData.segIdx);
+  applyWallSelection(dragSelectAnchor.floorIdx, dragSelectAnchor.wallId, from, to);
+}
+function onDragSelectUp(){
+  dragSelecting = false;
+  window.removeEventListener('pointermove', onDragSelectMove);
+  window.removeEventListener('pointerup', onDragSelectUp);
+}
+
 function onPointerDown(e){
   if(dragWorker) return;
+  if(workspaceSelectMode && !wallSelectWholeMode && (e.ctrlKey || e.metaKey)){
+    const seg = raycastWallFromEvent(e);
+    if(seg){
+      dragSelecting = true;
+      dragSelectAnchor = { floorIdx: seg.userData.floorIdx, wallId: seg.userData.wallId, segIdx: seg.userData.segIdx };
+      applyWallSelection(seg.userData.floorIdx, seg.userData.wallId, seg.userData.segIdx, seg.userData.segIdx);
+      window.addEventListener('pointermove', onDragSelectMove);
+      window.addEventListener('pointerup', onDragSelectUp);
+      return;
+    }
+  }
+  clickStartX = e.clientX; clickStartY = e.clientY;
+  clickCandidateSeg = workspaceSelectMode ? raycastWallFromEvent(e) : null;
   orbiting = true; lastX = e.clientX; lastY = e.clientY;
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
@@ -848,7 +1080,17 @@ function onPointerMove(e){
   targetYaw -= dx * 0.006;
   targetPitch = Math.max(0.15, Math.min(1.2, targetPitch + dy*0.005));
 }
-function onPointerUp(){ orbiting = false; window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('pointerup', onPointerUp); }
+function onPointerUp(e){
+  orbiting = false;
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+  if(workspaceSelectMode && e){
+    const moved = Math.hypot(e.clientX-clickStartX, e.clientY-clickStartY);
+    if(moved < 4 && clickCandidateSeg) selectWallFromClick(clickCandidateSeg);
+    else if(moved < 4) clearWallSelection();
+  }
+  clickCandidateSeg = null;
+}
 function onWheel(e){ e.preventDefault(); targetDist = Math.max(12, Math.min(70, targetDist + e.deltaY*0.02)); }
 
 // ---- HTML5 drag & drop of worker cards onto the canvas ----
@@ -863,6 +1105,7 @@ holderEl.addEventListener('dragover', e=>{
     highlightRail(hit.floorIdx);
     showGhost(hit);
     targetLookY = floorY(hit.floorIdx);
+    targetLookX = 0; targetLookZ = 0;
     targetPitch = 0.4;
     document.getElementById('hint').textContent = `Floor ${floors[hit.floorIdx]} · release to place`;
   } else {
@@ -947,6 +1190,8 @@ let modalWorker = null, modalMode = 'none';
 function openModal(worker, defaultMode){
   modalWorker = worker;
   modalMode = defaultMode;
+  clearWallSelection();
+  document.getElementById('workspace-field').style.display = pendingPlacement ? 'block' : 'none';
   document.getElementById('modal-worker-name').textContent = worker.name;
   document.getElementById('modal-avatar').innerHTML = worker.photo_url
     ? `<img src="${worker.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
@@ -959,10 +1204,64 @@ function openModal(worker, defaultMode){
   document.getElementById('overlay').classList.add('open');
   document.getElementById('f-title').focus();
 }
+// Re-show the modal after workspace selection WITHOUT resetting what the manager typed.
+function reopenModalAfterWorkspace(){
+  document.getElementById('overlay').classList.add('open');
+}
 function closeModal(){
   document.getElementById('overlay').classList.remove('open');
   modalWorker = null; pendingPlacement = null;
+  clearWallSelection();
 }
+
+// ---- "Mark workspace": hide modal, zoom to the drop point, pick wall segments ----
+let wallSnapshot = null;
+function exitWorkspaceMode(){
+  workspaceSelectMode = false;
+  dragSelecting = false;
+  document.getElementById('wall-select-bar').classList.remove('show');
+  document.getElementById('hint').textContent = '';
+  targetLookX = 0; targetLookZ = 0;
+}
+document.getElementById('btn-mark-workspace').addEventListener('click', ()=>{
+  if(!pendingPlacement) return;
+  wallSnapshot = selectedWall ? {...selectedWall} : null;
+  document.getElementById('overlay').classList.remove('open');
+  workspaceSelectMode = true;
+  wallSelectWholeMode = false;
+  document.querySelectorAll('#ws-mode-seg button').forEach(b=> b.classList.toggle('sel', b.dataset.mode==='segments'));
+  refreshWallSelectionUI();
+  document.getElementById('wall-select-bar').classList.add('show');
+  // mild zoom toward where the worker was dropped
+  targetLookX = (pendingPlacement.x*2 - 1) * (FLOOR_W/2);
+  targetLookZ = (pendingPlacement.y*2 - 1) * (FLOOR_D/2);
+  targetLookY = floorY(pendingPlacement.floorIdx);
+  targetDist = 16; targetPitch = 0.5;
+  highlightRail(pendingPlacement.floorIdx);
+});
+document.querySelectorAll('#ws-mode-seg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    wallSelectWholeMode = btn.dataset.mode === 'whole';
+    document.querySelectorAll('#ws-mode-seg button').forEach(b=> b.classList.toggle('sel', b===btn));
+    clearWallSelection();   // avoid a confusing mixed state when switching modes
+  });
+});
+document.getElementById('ws-done-btn').addEventListener('click', ()=>{
+  if(selectedWall){
+    const noteEl = document.getElementById('f-note');
+    if(!noteEl.value.trim()){
+      noteEl.value = wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to);
+    }
+  }
+  exitWorkspaceMode();
+  reopenModalAfterWorkspace();
+});
+document.getElementById('ws-cancel-btn').addEventListener('click', ()=>{
+  if(wallSnapshot) applyWallSelection(wallSnapshot.floorIdx, wallSnapshot.wallId, wallSnapshot.from, wallSnapshot.to);
+  else clearWallSelection();
+  exitWorkspaceMode();
+  reopenModalAfterWorkspace();
+});
 document.getElementById('btn-cancel').addEventListener('click', closeModal);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
 
@@ -1008,6 +1307,12 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
     fd.append('pin_y', pendingPlacement.y.toFixed(4));
     const note = document.getElementById('f-note').value.trim();
     if(note) fd.append('location_note', note);
+  }
+  if(selectedWall){
+    fd.append('wall_id', selectedWall.wallId);
+    fd.append('seg_from', String(selectedWall.from));
+    fd.append('seg_to', String(selectedWall.to));
+    if(modalMode === 'none') fd.append('floor', floors[selectedWall.floorIdx]);
   }
   try{
     const r = await fetch(API + '/tasks', {method:'POST', body:fd});

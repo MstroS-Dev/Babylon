@@ -223,6 +223,9 @@ async def create_task(
     pin_x: Optional[str] = Form(None),
     pin_y: Optional[str] = Form(None),
     location_note: Optional[str] = Form(None),
+    wall_id: Optional[str] = Form(None),
+    seg_from: Optional[int] = Form(None),
+    seg_to: Optional[int] = Form(None),
     photo_requirement: Optional[str] = Form(None),  # e.g. "the cement blocks by the north wall"
     db: Session = Depends(get_db),
 ):
@@ -236,7 +239,8 @@ async def create_task(
     task = Task(worker_id=worker_id, title=title, description=description,
                 detailed_description=detailed_description, status="assigned",
                 location_mode=location_mode, floor=floor, pin_x=pin_x, pin_y=pin_y,
-                location_note=location_note, photo_requirement=photo_requirement)
+                location_note=location_note, photo_requirement=photo_requirement,
+                wall_id=wall_id, seg_from=seg_from, seg_to=seg_to)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -309,6 +313,7 @@ def list_tasks(db: Session = Depends(get_db)):
             ],
             "location_mode": t.location_mode, "floor": t.floor,
             "pin_x": t.pin_x, "pin_y": t.pin_y, "location_note": t.location_note,
+            "wall_id": t.wall_id, "seg_from": t.seg_from, "seg_to": t.seg_to,
             "checkin_photo_url": t.checkin_photo_url, "checkin_approved": t.checkin_approved,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "in_progress_at": t.in_progress_at.isoformat() if t.in_progress_at else None,

@@ -19,6 +19,9 @@ _NEW_TASK_COLUMNS = {
     "checkin_photo_url": "VARCHAR",
     "checkin_approved": "BOOLEAN",
     "photo_requirement": "TEXT",
+    "wall_id": "VARCHAR",
+    "seg_from": "INTEGER",
+    "seg_to": "INTEGER",
 }
 
 _NEW_MESSAGE_COLUMNS = {

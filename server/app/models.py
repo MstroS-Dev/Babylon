@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Integer
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -72,6 +72,9 @@ class Task(Base):
     pin_x = Column(String, nullable=True)           # normalized 0-1 position on the floor plate
     pin_y = Column(String, nullable=True)
     location_note = Column(Text, nullable=True)     # e.g. "north stairwell, by the electrical panel"
+    wall_id = Column(String, nullable=True)         # which wall (N/E/S/W/I1/I2) the workspace is on
+    seg_from = Column(Integer, nullable=True)       # first wall segment of the workspace
+    seg_to = Column(Integer, nullable=True)         # last wall segment (inclusive)
     checkin_photo_url = Column(String, nullable=True)     # worker's photo_checkin submission
     checkin_approved = Column(Boolean, nullable=True)     # manager's approval of the check-in photo
 
