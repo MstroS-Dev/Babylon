@@ -36,8 +36,8 @@ trap cleanup EXIT
 if [ $((MEM_MB + SWAP_MB)) -lt $NEED_MB ]; then
   ADD_MB=$((NEED_MB - MEM_MB - SWAP_MB)); [ "$ADD_MB" -lt 1024 ] && ADD_MB=1024
   FREE_MB=$(df -Pm /var/tmp | awk 'NR==2{print $4}')
-  if [ "$FREE_MB" -lt $((ADD_MB + 1500)) ]; then
-    echo "Not enough free disk space (${FREE_MB} MB free; need about $((ADD_MB + 1500)) MB). Free some space and re-run."; exit 1
+  if [ "$FREE_MB" -lt $((ADD_MB + 700)) ]; then
+    echo "Not enough free disk space (${FREE_MB} MB free; need about $((ADD_MB + 700)) MB). Free some space and re-run."; exit 1
   fi
   echo "Server has ${MEM_MB} MB RAM: adding ${ADD_MB} MB of temporary swap for the build ..."
   SWAPFILE=/var/tmp/dwg-build.swap
