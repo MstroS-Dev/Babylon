@@ -160,6 +160,10 @@
   #plan-import-btn{position:absolute;top:16px;right:22px;background:var(--panel-2);border:1px solid var(--border);
     color:var(--text-dim);border-radius:8px;padding:7px 12px;font-size:11.5px;font-family:var(--font-mono);cursor:pointer;z-index:4;}
   #plan-import-btn:hover{border-color:var(--accent-dim);color:var(--accent);}
+  #isolate-btn{position:absolute;top:16px;right:172px;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text-dim);border-radius:8px;padding:7px 12px;font-size:11.5px;font-family:var(--font-mono);cursor:pointer;z-index:4;}
+  #isolate-btn:hover{border-color:var(--accent-dim);}
+  #isolate-btn.on{border-color:var(--accent);color:var(--accent);}
 
   /* ---------- Floor-plan import ---------- */
   #plan-overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;
@@ -355,7 +359,8 @@
     <div id="canvas-holder"></div>
     <div id="stage-caption">Drag to orbit · Scroll to zoom · <b>Drop a worker on a floor to place a task</b></div>
     <div id="floor-rail"><button id="rail-add" title="Add floor">+</button></div>
-    <button id="plan-import-btn" title="Import a floor plan from CAD (DXF or vector PDF)">Import floor plan</button>
+    <button id="isolate-btn" title="Show only the selected floor (floors above hidden, floors below faded)">Isolate floor</button>
+    <button id="plan-import-btn" title="Import a floor plan from CAD (DWG, DXF or vector PDF)">Import floor plan</button>
     <div id="wall-select-bar">
       <div id="ws-mode-seg">
         <button data-mode="segments" class="sel" title="Click one segment, Ctrl/Cmd-drag for a range">Segments</button>
@@ -397,6 +402,8 @@
           </span>
           <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
             <input type="checkbox" id="plan-merge" checked> Merge double-line walls into one wall</label>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
+            <input type="checkbox" id="plan-details" checked> Show doors, windows, stairs &amp; furniture on the floor</label>
         </div>
         <canvas id="plan-canvas" width="580" height="240"></canvas>
         <div id="plan-stats"></div>
@@ -673,6 +680,7 @@ function renderCrew(){
       e.dataTransfer.effectAllowed = 'move';
     });
     card.addEventListener('dragend', ()=>{
+      dragWorker = null;                         // otherwise onPointerDown ignores every later click (no orbit, no wall picking)
       card.classList.remove('dragging');
       setTimeout(()=>{ dragStarted = false; }, 50);
     });
@@ -882,6 +890,8 @@ function setStatus(live){
 // ==================================================================
 let scene, camera, renderer, raycaster, floorMeshes = [], pinGroup, ghostSprite;
 let wallGroup, wallSegMeshes = [], floorPlans = {};
+let isolateFloor = true, floorK = [];
+try{ isolateFloor = localStorage.getItem('babylon_isolate') !== '0'; }catch(_){}
 let selectedWall = null; // { floorIdx, wallId, from, to }
 let dragSelecting = false, dragSelectAnchor = null;
 let workspaceSelectMode = false, wallSelectWholeMode = false;
@@ -915,6 +925,7 @@ function initScene(){
 
   raycaster = new THREE.Raycaster();
   buildFloors();
+  if(isolateFloor) focusFloor(selectedFloorIdx);
   updateCamera();
   animate();
 
@@ -991,7 +1002,9 @@ function planFromServer(sp){
     orientNormal(w);
     return w;
   });
-  return { walls, imported:true };
+  // real storey ~3 m: keep walls in proportion to the (scaled) footprint instead of a fixed height
+  const wallH = Math.max(0.9, Math.min(WALL_H, 2.9*sc));
+  return { walls, imported:true, sc, wallH, footprint: sp.footprint || null, details: sp.details || null };
 }
 
 function importedWallName(w){
@@ -1022,7 +1035,11 @@ function wallRangeLabel(floorIdx, wallId, from, to){
 }
 
 function buildFloors(){
-  floorMeshes.forEach(f=>{ scene.remove(f.mesh); if(f.grid) scene.remove(f.grid); (f.cols||[]).forEach(c=>scene.remove(c)); });
+  floorMeshes.forEach(f=>{
+    scene.remove(f.mesh); if(f.grid) scene.remove(f.grid);
+    (f.cols||[]).forEach(c=>scene.remove(c));
+    (f.extras||[]).forEach(o=>{ scene.remove(o); if(o.geometry) o.geometry.dispose(); });
+  });
   floorMeshes = [];
   if(wallGroup){ wallGroup.clear(); }
   wallSegMeshes = [];
@@ -1050,7 +1067,7 @@ function buildFloors(){
       [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
         const col = new THREE.Mesh(
           new THREE.BoxGeometry(0.22, FLOOR_H+0.9, 0.22),
-          new THREE.MeshStandardMaterial({color:0x263748})
+          new THREE.MeshStandardMaterial({color:0x263748, transparent:true, opacity:1})
         );
         col.position.set(sx*(FLOOR_W/2-0.4), y-(FLOOR_H+0.9)/2, sz*(FLOOR_D/2-0.4));
         scene.add(col);
@@ -1060,15 +1077,50 @@ function buildFloors(){
 
     buildWallsForFloor(idx, y);
 
-    floorMeshes.push({mesh, grid, idx, label, cols});
+    mesh.userData.baseOp = 0.88;
+    const extras = buildImportedExtras(idx, y, mesh);
+    floorMeshes.push({mesh, grid, idx, label, cols, extras, slabHidden: extras.some(o=>o.userData.isFootprint)});
   });
   buildRail();
+}
+
+// Imported floors: slab shaped like the real building + the CAD drawing (doors, windows, stairs, furniture) as a blueprint underlay
+function buildImportedExtras(idx, y, slabMesh){
+  const plan = floorPlans[idx], extras = [];
+  if(!plan || !plan.imported) return extras;
+  const sc = plan.sc;
+  if(plan.footprint && plan.footprint.length){
+    slabMesh.material.visible = false;     // the rectangle stays only as the (invisible) drop target
+    plan.footprint.forEach(ring=>{
+      const shape = new THREE.Shape(ring.map(q=> new THREE.Vector2(q[0]*sc, -q[1]*sc)));
+      const geo = new THREE.ExtrudeGeometry(shape, {depth:0.35, bevelEnabled:false});
+      geo.rotateX(-Math.PI/2);
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color:0x16212c, transparent:true, opacity:0.95, metalness:0.1, roughness:0.8}));
+      m.position.set(0, y-0.175, 0);
+      m.userData = { baseOp:0.95, isFootprint:true };
+      scene.add(m); extras.push(m);
+    });
+  }
+  if(plan.details && plan.details.length){
+    const pos = new Float32Array(plan.details.length*6);
+    plan.details.forEach((d,i)=>{
+      pos[i*6] = d[0]*sc; pos[i*6+1] = y+0.2; pos[i*6+2] = d[1]*sc;
+      pos[i*6+3] = d[2]*sc; pos[i*6+4] = y+0.2; pos[i*6+5] = d[3]*sc;
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0x6fa2d6, transparent:true, opacity:0.8}));
+    lines.userData = { baseOp:0.8 };
+    scene.add(lines); extras.push(lines);
+  }
+  return extras;
 }
 
 function buildWallsForFloor(floorIdx, y){
   const sp = serverPlans[floors[floorIdx]];
   const plan = sp ? planFromServer(sp) : makeDefaultFloorPlan();
   floorPlans[floorIdx] = plan;
+  const WH = plan.wallH || WALL_H;
   plan.walls.forEach(wall=>{
     for(let s=0; s<wall.segCount; s++){
       const c0x = wall.x1 + (wall.x2-wall.x1) * (s/wall.segCount);
@@ -1077,12 +1129,12 @@ function buildWallsForFloor(floorIdx, y){
       const c1z = wall.z1 + (wall.z2-wall.z1) * ((s+1)/wall.segCount);
       const segLen = Math.hypot(c1x-c0x, c1z-c0z);
       const cx = (c0x+c1x)/2, cz = (c0z+c1z)/2;
-      const geo = new THREE.BoxGeometry(segLen*1.01, WALL_H, wall.thick || WALL_T);
+      const geo = new THREE.BoxGeometry(segLen*1.01, WH, wall.thick || WALL_T);
       const mat = new THREE.MeshStandardMaterial({
         color: 0xcfd8e0, transparent:true, opacity:0.94, roughness:0.9, side: THREE.DoubleSide
       });
       const seg = new THREE.Mesh(geo, mat);
-      seg.position.set(cx, y + WALL_H/2 + 0.18, cz);
+      seg.position.set(cx, y + WH/2 + 0.18, cz);
       seg.rotation.y = -Math.atan2(wall.dir.z, wall.dir.x);
       seg.userData = {
         floorIdx, wallId: wall.id, segIdx: s,
@@ -1125,11 +1177,11 @@ function highlightRail(idx){
 function focusFloor(idx){
   selectedFloorIdx = idx;
   highlightRail(idx);
-  targetPitch = 0.42;
+  targetPitch = isolateFloor ? 0.66 : 0.42;
   targetYaw = camYaw;
   targetLookY = floorY(idx);
   targetLookX = 0; targetLookZ = 0;
-  targetDist = 24;
+  targetDist = isolateFloor ? 21 : 24;
 }
 
 let targetPitch = camPitch, targetYaw = camYaw, targetDist = camDist, targetLookY = floorY(2);
@@ -1149,6 +1201,34 @@ function updateCamera(){
 }
 let currentLookY = floorY(2);
 
+// "Isolate floor": floors above the selected one are hidden, floors below are ghosted, so one plan reads clearly.
+// While a worker is being dragged everything shows so any floor can be targeted.
+function floorTargetK(idx){
+  if(!isolateFloor || dragWorker) return 1;
+  if(idx > selectedFloorIdx) return 0;
+  if(idx < selectedFloorIdx) return 0.22;
+  return 1;
+}
+function updateFloorIsolation(){
+  floorMeshes.forEach(f=>{
+    const t = floorTargetK(f.idx);
+    const k = (floorK[f.idx] === undefined ? t : floorK[f.idx]);
+    const nk = Math.abs(t - k) < 0.01 ? t : k + (t - k) * 0.15;
+    floorK[f.idx] = nk;
+    const vis = nk > 0.02;
+    f.mesh.visible = vis || f.slabHidden;
+    f.mesh.material.opacity = f.mesh.userData.baseOp * nk;
+    if(f.grid){ f.grid.visible = vis; f.grid.material.opacity = 0.5 * nk; }
+    (f.cols||[]).forEach(c=>{ c.visible = vis; c.material.opacity = nk; });
+    (f.extras||[]).forEach(o=>{ o.visible = vis; o.material.opacity = (o.userData.baseOp||1) * nk; });
+  });
+  pinGroup.children.forEach(sp=>{
+    const k = floorK[sp.userData.floorIdx];
+    if(k === undefined) return;
+    sp.visible = k > 0.3;
+  });
+}
+
 // Walls between the camera and the interior fade out (X-ray); far walls stay solid.
 const NEAR_OPACITY = 0.08, FAR_OPACITY = 0.94, SELECTED_OPACITY = 0.94;
 function updateWallXray(){
@@ -1159,7 +1239,9 @@ function updateWallXray(){
     const tx = camPos.x - _wallScratchVec.x, tz = camPos.z - _wallScratchVec.z;
     const facing = tx * seg.userData.normal.x + tz * seg.userData.normal.z;
     const sel = seg.userData.selected;
-    const targetOp = sel ? SELECTED_OPACITY : (facing > 0 ? NEAR_OPACITY : FAR_OPACITY);
+    const fk = floorK[seg.userData.floorIdx] === undefined ? 1 : floorK[seg.userData.floorIdx];
+    seg.visible = fk > 0.02;
+    const targetOp = (sel ? SELECTED_OPACITY : (facing > 0 ? NEAR_OPACITY : FAR_OPACITY)) * fk;
     seg.material.opacity += (targetOp - seg.material.opacity) * 0.15;
     seg.material.color.setHex(sel ? 0xff6a1f : 0xcfd8e0);
   });
@@ -1168,6 +1250,7 @@ function updateWallXray(){
 function animate(){
   requestAnimationFrame(animate);
   updateCamera();
+  updateFloorIsolation();
   updateWallXray();
   renderer.render(scene, camera);
 }
@@ -1317,6 +1400,7 @@ holderEl.addEventListener('drop', e=>{
   const hit = raycastFromEvent(e);
   if(!w || !hit) return;
   pendingPlacement = { floorIdx: hit.floorIdx, x: hit.nx, y: hit.nz };
+  selectedFloorIdx = hit.floorIdx; highlightRail(hit.floorIdx);
   openModal(w, 'pin');
 });
 
@@ -1374,6 +1458,7 @@ function placePinFromTask(t){
   const x = (Number(t.pin_x)*2 - 1) * (FLOOR_W/2);
   const z = (Number(t.pin_y)*2 - 1) * (FLOOR_D/2);
   sprite.position.set(x, floorY(idx)+0.9, z);
+  sprite.userData.floorIdx = idx;
   pinGroup.add(sprite);
 }
 
@@ -1431,7 +1516,7 @@ document.getElementById('btn-mark-workspace').addEventListener('click', ()=>{
   targetLookZ = (pendingPlacement.y*2 - 1) * (FLOOR_D/2);
   targetLookY = floorY(pendingPlacement.floorIdx);
   targetDist = 16; targetPitch = 0.5;
-  highlightRail(pendingPlacement.floorIdx);
+  selectedFloorIdx = pendingPlacement.floorIdx; highlightRail(pendingPlacement.floorIdx);
 });
 document.querySelectorAll('#ws-mode-seg button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -1578,6 +1663,7 @@ function planFormData(){
     fd.append('units', $p('plan-units').value);
   }
   fd.append('merge_pairs', $p('plan-merge').checked ? 'true' : 'false');
+  fd.append('details', $p('plan-details').checked ? 'true' : 'false');
   return fd;
 }
 
@@ -1643,7 +1729,7 @@ function renderPlanPreview(){
     return;
   }
   setPlanMsg(`Read <b>${escHtml(plan.source.filename)}</b> \u2014 ${escHtml(plan.source.units_note)}.`, false);
-  $p('plan-stats').textContent = `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall`;
+  $p('plan-stats').textContent = `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall` + (plan.stats.details ? ` \u00b7 ${plan.stats.details} drawing lines` : '');
   $p('plan-warn').textContent = (plan.warnings || []).join(' ');
   drawPlanPreview(plan);
   $p('plan-save').disabled = false;
@@ -1658,6 +1744,20 @@ function drawPlanPreview(plan){
   const sc = Math.min((W-2*m)/Math.max(plan.bounds.w,0.1), (H-2*m)/Math.max(plan.bounds.d,0.1));
   const cs = getComputedStyle(document.documentElement);
   const col = (cs.getPropertyValue('--accent') || '#ff6a1f').trim();
+  if(plan.footprint){
+    ctx.fillStyle = 'rgba(120,150,180,0.10)';
+    plan.footprint.forEach(ring=>{
+      ctx.beginPath();
+      ring.forEach((q,i)=>{ const X = W/2 + q[0]*sc, Y = H/2 + q[1]*sc; if(i) ctx.lineTo(X,Y); else ctx.moveTo(X,Y); });
+      ctx.closePath(); ctx.fill();
+    });
+  }
+  if(plan.details && plan.details.length){
+    ctx.strokeStyle = 'rgba(111,162,214,0.55)'; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    plan.details.forEach(d=>{ ctx.moveTo(W/2 + d[0]*sc, H/2 + d[1]*sc); ctx.lineTo(W/2 + d[2]*sc, H/2 + d[3]*sc); });
+    ctx.stroke();
+  }
   ctx.strokeStyle = col; ctx.lineCap = 'butt';
   plan.walls.forEach(w=>{
     ctx.lineWidth = Math.max(1.5, w.t * sc);
@@ -1669,6 +1769,17 @@ function drawPlanPreview(plan){
 }
 
 document.getElementById('plan-import-btn').addEventListener('click', openPlanModal);
+(function(){
+  const b = document.getElementById('isolate-btn');
+  const sync = ()=> b.classList.toggle('on', isolateFloor);
+  sync();
+  b.addEventListener('click', ()=>{
+    isolateFloor = !isolateFloor;
+    try{ localStorage.setItem('babylon_isolate', isolateFloor ? '1' : '0'); }catch(_){}
+    sync();
+    focusFloor(selectedFloorIdx);
+  });
+})();
 $p('plan-cancel').addEventListener('click', closePlanModal);
 $p('plan-overlay').addEventListener('click', e=>{ if(e.target.id === 'plan-overlay') closePlanModal(); });
 $p('plan-floor').addEventListener('change', refreshPlanFloorUI);
@@ -1677,7 +1788,7 @@ $p('plan-file').addEventListener('change', e=>{
   planLayersSel = null; planResult = null; $p('plan-page-wrap').dataset.built = '';
   if(planFile) runPlanPreview();
 });
-['plan-scale','plan-units','plan-merge','plan-page'].forEach(id=> $p(id).addEventListener('change', schedulePlanPreview));
+['plan-scale','plan-units','plan-merge','plan-details','plan-page'].forEach(id=> $p(id).addEventListener('change', schedulePlanPreview));
 $p('plan-scale').addEventListener('input', schedulePlanPreview);
 
 $p('plan-save').addEventListener('click', async ()=>{

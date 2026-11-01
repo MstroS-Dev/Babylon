@@ -36,8 +36,14 @@ _INSUNITS_TO_M = {1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1.0, 7: 1000.0}
 _UNIT_NAMES = {"mm": 0.001, "cm": 0.01, "m": 1.0, "in": 0.0254, "ft": 0.3048}
 
 _WALL_RE = re.compile(r"wall|קיר|a-wall|a_wall|mur|pared|wand|stene", re.I)
-_NOT_WALL_RE = re.compile(r"door|window|furn|dim|text|anno|hatch|grid|axis|ceil|elec|plumb|"
+# layers that are never the wall skeleton: finishes/patterns/annotation/furniture/openings/MEP...
+_NOT_WALL_RE = re.compile(r"fnsh|finish|patt|hatch|demo|iden|mbnd|dim|text|txt|anno|grid|axis|ceil|clng|"
+                          r"elec|plumb|sanr|furn|door|glaz|window|strs|stair|flor|fixt|eqpm|symb|revc|"
+                          r"detl|defpoints|viewport|spcq|genm|"
                           r"דלת|חלון|ריהוט|מידות|טקסט", re.I)
+# layers drawn as a blueprint "underlay" on the floor: doors, windows, stairs, sanitary fixtures, furniture
+_DETAIL_RE = re.compile(r"door|glaz|window|furn|strs|stair|sanr|דלת|חלון|ריהוט", re.I)
+_NOT_DETAIL_RE = re.compile(r"text|txt|anno|dim|elec|eqpm|hral|detl|iden|revc|symb|grid|axis", re.I)
 
 
 class PlanError(ValueError):
@@ -293,23 +299,55 @@ def unit_factor(raw: Dict[str, Any], opts: Dict[str, Any]) -> Tuple[float, str]:
 # --------------------------------------------------------------------------
 # Layer summary
 # --------------------------------------------------------------------------
+def _wallness(segs: List[Tuple[float, float, float, float]]) -> float:
+    """Share of a layer's line length that forms parallel double lines at wall-like spacing
+    (5-50 cm apart). Real walls drawn as outlines score high; hatches, trees, dimensions and
+    fixtures score low."""
+    total = sum(math.hypot(x2 - x1, z2 - z1) for x1, z1, x2, z2 in segs)
+    if total < 3:
+        return 0.0
+    paired = 0.0
+    for g in _group_lines(segs):
+        for w in _pair_walls(g, 0.05, 0.5, 0.3, False, 0.15, 0.5):
+            paired += (w["b"] - w["a"]) * 2
+    return min(1.0, paired / total)
+
+
 def summarize_layers(raw: Dict[str, Any], factor: float) -> List[Dict[str, Any]]:
+    cache = raw.setdefault("_layers_cache", {})
+    if factor in cache:
+        return [dict(l) for l in cache[factor]]
     agg: Dict[str, List[float]] = {}
+    per_layer: Dict[str, List[Tuple[float, float, float, float]]] = {}
     for layer, x1, z1, x2, z2 in raw["segments"]:
         a = agg.setdefault(layer, [0, 0.0])
         a[0] += 1
         a[1] += math.hypot(x2 - x1, z2 - z1) * factor
+        per_layer.setdefault(layer, []).append((x1 * factor, z1 * factor, x2 * factor, z2 * factor))
     out = [{"name": k, "count": int(v[0]), "length_m": round(v[1], 1),
             "off": k in raw["off_layers"]} for k, v in agg.items()]
     out.sort(key=lambda l: -l["length_m"])
-    # preselect: layers that look like walls; else the single longest non-obvious-junk layer
-    chosen = [l for l in out if _WALL_RE.search(l["name"]) and not l["off"]]
-    if not chosen:
-        cands = [l for l in out if not _NOT_WALL_RE.search(l["name"]) and not l["off"]]
-        chosen = cands[:1]
-    names = {l["name"] for l in chosen}
+
+    # preselect the wall layers:
+    #   1. layers named like walls (but not finishes/patterns/...), and
+    #   2. layers that don't look like junk by name but whose geometry is wall-like double lines
+    #      (catches structural walls on layers called e.g. "S_cos_dwg").
+    chosen = set()
     for l in out:
-        l["preselected"] = l["name"] in names
+        if l["off"]:
+            continue
+        junk = bool(_NOT_WALL_RE.search(l["name"]))
+        if _WALL_RE.search(l["name"]) and not junk:
+            chosen.add(l["name"])
+        elif not junk and l["length_m"] >= 8 and l["count"] >= 6:
+            if _wallness(per_layer[l["name"]]) >= 0.4:
+                chosen.add(l["name"])
+    if not chosen:      # last resort: the longest layer that doesn't look like junk
+        cands = [l for l in out if not _NOT_WALL_RE.search(l["name"]) and not l["off"]]
+        chosen = {c["name"] for c in cands[:1]}
+    for l in out:
+        l["preselected"] = l["name"] in chosen
+    cache[factor] = [dict(l) for l in out]
     return out
 
 
@@ -457,6 +495,101 @@ def _pair_walls(group: Dict[str, Any], t_min: float, t_max: float, min_overlap: 
     return walls
 
 
+def _join_walls(walls: List[List[float]]) -> List[List[float]]:
+    """Extend wall ends that stop just short of a crossing wall so corners and T-junctions meet
+    cleanly (paired outlines leave each centreline ending at the other wall's inner face)."""
+    orig = [tuple(w) for w in walls]
+    out = [list(w) for w in walls]
+    for i, w in enumerate(orig):
+        for end in (0, 1):
+            px, pz = (w[0], w[1]) if end == 0 else (w[2], w[3])
+            qx, qz = (w[2], w[3]) if end == 0 else (w[0], w[1])
+            dx, dz = px - qx, pz - qz
+            L = math.hypot(dx, dz)
+            if L < 1e-6:
+                continue
+            dx, dz = dx / L, dz / L
+            best = None
+            for j, o in enumerate(orig):
+                if j == i:
+                    continue
+                ox, oz = o[2] - o[0], o[3] - o[1]
+                ol = math.hypot(ox, oz)
+                if ol < 1e-6:
+                    continue
+                ux, uz = ox / ol, oz / ol
+                cross = dx * uz - dz * ux
+                if abs(cross) < 0.35:
+                    continue
+                wx, wz = o[0] - px, o[1] - pz
+                sdist = (wx * uz - wz * ux) / cross
+                r = (wx * dz - wz * dx) / cross
+                slack = o[4] / 2 + 0.15
+                if 0 < sdist <= o[4] / 2 + 0.2 and -slack <= r <= ol + slack:
+                    if best is None or sdist < best:
+                        best = sdist
+            if best:
+                nx_, nz_ = px + dx * best, pz + dz * best
+                if end == 0:
+                    out[i][0], out[i][1] = nx_, nz_
+                else:
+                    out[i][2], out[i][3] = nx_, nz_
+    return out
+
+
+def _footprint(walls: List[Dict[str, Any]]) -> Optional[List[List[List[float]]]]:
+    """Outline of the building as polygon ring(s): walls unioned, door/window gaps bridged,
+    interior courtyards filled. Used for a floor slab that matches the real shape."""
+    try:
+        from shapely.geometry import LineString, Polygon
+        from shapely.ops import unary_union
+    except ImportError:
+        return None
+    try:
+        parts = [LineString([(w["x1"], w["z1"]), (w["x2"], w["z2"])]).buffer(max(w["t"], 0.1) / 2, cap_style=2, join_style=2)
+                 for w in walls]
+        union = unary_union(parts)
+        closed = union.buffer(0.6, join_style=2).buffer(-0.6, join_style=2)
+        geoms = list(closed.geoms) if hasattr(closed, "geoms") else [closed]
+        solids = [Polygon(g.exterior) for g in geoms if not g.is_empty and g.geom_type == "Polygon"]
+        if not solids:
+            return None
+        biggest = max(g.area for g in solids)
+        rings = []
+        for g in solids:
+            if g.area < 4 or g.area < 0.1 * biggest:
+                continue
+            g = g.simplify(0.08)
+            if g.is_empty or g.geom_type != "Polygon":
+                continue
+            rings.append([[round(x, 2), round(z, 2)] for x, z in list(g.exterior.coords)[:-1]])
+        return rings or None
+    except Exception:  # noqa: BLE001 - the slab falls back to a rectangle
+        return None
+
+
+MAX_DETAIL_LINES = 9000
+
+
+def _detail_lines(raw: Dict[str, Any], factor: float, cx: float, cz: float, half_w: float, half_d: float,
+                  margin: float = 1.5) -> List[List[float]]:
+    out = []
+    off = set(raw.get("off_layers", []))
+    for layer, x1, z1, x2, z2 in raw["segments"]:
+        if layer in off or not _DETAIL_RE.search(layer) or _NOT_DETAIL_RE.search(layer):
+            continue
+        a, b, c, d = x1 * factor - cx, z1 * factor - cz, x2 * factor - cx, z2 * factor - cz
+        if math.hypot(c - a, d - b) < 0.03:
+            continue
+        if max(abs(a), abs(c)) > half_w + margin or max(abs(b), abs(d)) > half_d + margin:
+            continue
+        out.append([round(a, 2), round(b, 2), round(c, 2), round(d, 2)])
+    if len(out) > MAX_DETAIL_LINES:
+        out.sort(key=lambda l: -math.hypot(l[2] - l[0], l[3] - l[1]))
+        out = out[:MAX_DETAIL_LINES]
+    return out
+
+
 # --------------------------------------------------------------------------
 # 3. Build the plan
 # --------------------------------------------------------------------------
@@ -503,6 +636,8 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
         walls_raw.sort(key=lambda w: -math.hypot(w[2] - w[0], w[3] - w[1]))
         walls_raw = walls_raw[:MAX_WALLS]
 
+    walls_raw = [tuple(w) for w in _join_walls([list(w) for w in walls_raw])]
+
     xs = [v for w in walls_raw for v in (w[0], w[2])]
     zs = [v for w in walls_raw for v in (w[1], w[3])]
     cx, cz = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2
@@ -518,6 +653,7 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
         walls.append({"id": f"W{i}", "x1": round(x1 - cx, 3), "z1": round(z1 - cz, 3),
                       "x2": round(x2 - cx, 3), "z2": round(z2 - cz, 3), "t": round(t, 3)})
 
+    details = _detail_lines(raw, factor, cx, cz, width / 2, depth / 2) if opts.get("details", True) else []
     return {
         "version": PLAN_VERSION,
         "units": "m",
@@ -525,7 +661,9 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
                    "units_note": unit_note, "page": raw.get("page", 0)},
         "bounds": {"w": round(width, 2), "d": round(depth, 2)},
         "walls": walls,
-        "stats": {"walls": len(walls), "total_length_m": round(sum(
+        "footprint": _footprint(walls),
+        "details": details,
+        "stats": {"walls": len(walls), "details": len(details), "total_length_m": round(sum(
             math.hypot(w["x2"] - w["x1"], w["z2"] - w["z1"]) for w in walls), 1)},
         "warnings": warnings,
     }

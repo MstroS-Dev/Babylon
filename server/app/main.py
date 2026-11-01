@@ -581,7 +581,7 @@ _PLAN_LIBS_MISSING = ("The server is missing the CAD-import libraries (ezdxf, py
 
 
 def _plan_opts(layers: Optional[str], scale: Optional[float], units: Optional[str],
-               merge_pairs: Optional[bool], page: Optional[int]) -> dict:
+               merge_pairs: Optional[bool], page: Optional[int], details: Optional[bool] = None) -> dict:
     opts: dict = {}
     if layers is not None:
         try:
@@ -598,6 +598,8 @@ def _plan_opts(layers: Optional[str], scale: Optional[float], units: Optional[st
         opts["merge_pairs"] = merge_pairs
     if page:
         opts["page"] = page
+    if details is not None:
+        opts["details"] = details
     return opts
 
 
@@ -616,12 +618,13 @@ async def preview_floorplan(
     units: Optional[str] = Form(None),
     merge_pairs: Optional[bool] = Form(None),
     page: Optional[int] = Form(None),
+    details: Optional[bool] = Form(None),
 ):
     """Parse an uploaded DXF/PDF and return its layers plus the walls that WOULD be built. Saves nothing."""
     data = await _read_plan_upload(file)
     try:
         return await asyncio.to_thread(
-            fp_lib.preview, file.filename or "", data, _plan_opts(layers, scale, units, merge_pairs, page))
+            fp_lib.preview, file.filename or "", data, _plan_opts(layers, scale, units, merge_pairs, page, details))
     except fp_lib.PlanError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except ImportError:
@@ -637,11 +640,12 @@ async def save_floorplan(
     units: Optional[str] = Form(None),
     merge_pairs: Optional[bool] = Form(None),
     page: Optional[int] = Form(None),
+    details: Optional[bool] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Build the plan with the chosen options and store it as this floor's layout."""
     data = await _read_plan_upload(file)
-    opts = _plan_opts(layers, scale, units, merge_pairs, page)
+    opts = _plan_opts(layers, scale, units, merge_pairs, page, details)
 
     def build():
         raw = fp_lib.extract_segments(file.filename or "", data, int(opts.get("page", 0) or 0))

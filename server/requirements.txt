@@ -8,3 +8,4 @@ twilio
 google-auth
 ezdxf
 pymupdf
+shapely
