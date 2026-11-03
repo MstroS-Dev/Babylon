@@ -10,7 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .db import init_db, get_db
-from .models import Worker, Task, Message, TaskPhoto, ShiftEvent, FloorPlan
+from .models import Worker, Task, Message, TaskPhoto, ShiftEvent, FloorPlan, BuildingFloorPlan
+from .buildings import router as buildings_router, resolve_building
 from .translate import translate_text
 from .claude_review import review_task
 from .photo_review import verify_photo
@@ -39,6 +40,7 @@ app = FastAPI(title="Site Comms Server")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 init_db()
+app.include_router(buildings_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
@@ -151,6 +153,7 @@ def list_workers(db: Session = Depends(get_db)):
     return [
         {"id": w.id, "name": w.name, "language": w.language, "channel": w.channel,
          "photo_url": w.photo_url, "phone": w.phone, "checked_in": w.checked_in, "trade": w.trade,
+         "building_id": w.building_id,
          "last_status_change": w.last_status_change.isoformat() if w.last_status_change else None}
         for w in workers
     ]
@@ -581,7 +584,8 @@ _PLAN_LIBS_MISSING = ("The server is missing the CAD-import libraries (ezdxf, py
 
 
 def _plan_opts(layers: Optional[str], scale: Optional[float], units: Optional[str],
-               merge_pairs: Optional[bool], page: Optional[int], details: Optional[bool] = None) -> dict:
+               merge_pairs: Optional[bool], page: Optional[int], details: Optional[bool] = None,
+               split: Optional[bool] = None, region: Optional[int] = None) -> dict:
     opts: dict = {}
     if layers is not None:
         try:
@@ -600,6 +604,10 @@ def _plan_opts(layers: Optional[str], scale: Optional[float], units: Optional[st
         opts["page"] = page
     if details is not None:
         opts["details"] = details
+    if split is not None:
+        opts["split"] = split
+    if region is not None:
+        opts["region"] = region
     return opts
 
 
@@ -619,22 +627,69 @@ async def preview_floorplan(
     merge_pairs: Optional[bool] = Form(None),
     page: Optional[int] = Form(None),
     details: Optional[bool] = Form(None),
+    split: Optional[bool] = Form(None),
+    region: Optional[int] = Form(None),
 ):
     """Parse an uploaded DXF/PDF and return its layers plus the walls that WOULD be built. Saves nothing."""
     data = await _read_plan_upload(file)
     try:
         return await asyncio.to_thread(
-            fp_lib.preview, file.filename or "", data, _plan_opts(layers, scale, units, merge_pairs, page, details))
+            fp_lib.preview, file.filename or "", data, _plan_opts(layers, scale, units, merge_pairs, page, details, split, region))
     except fp_lib.PlanError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except ImportError:
         raise HTTPException(status_code=503, detail=_PLAN_LIBS_MISSING)
 
 
+def _build_plan_blocking(filename: str, data: bytes, opts: dict) -> dict:
+    raw = fp_lib.extract_segments(filename, data, int(opts.get("page", 0) or 0))
+    return fp_lib.build_plan(raw, filename, opts)
+
+
+def _store_plan(db: Session, building_id: str, floor: str, plan: dict, source_name: Optional[str]):
+    row = db.get(BuildingFloorPlan, (building_id, floor))
+    if row is None:
+        row = BuildingFloorPlan(building_id=building_id, floor=floor)
+        db.add(row)
+    row.plan_json = json.dumps(plan)
+    row.source_name = source_name
+
+
 @app.put("/floorplans/{floor}")
 async def save_floorplan(
     floor: str,
     file: UploadFile = File(...),
+    building_id: Optional[str] = Form(None),
+    layers: Optional[str] = Form(None),
+    scale: Optional[float] = Form(None),
+    units: Optional[str] = Form(None),
+    merge_pairs: Optional[bool] = Form(None),
+    page: Optional[int] = Form(None),
+    details: Optional[bool] = Form(None),
+    split: Optional[bool] = Form(None),
+    region: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Build the plan with the chosen options and store it as this floor's layout (in the given building)."""
+    b = resolve_building(db, building_id)
+    data = await _read_plan_upload(file)
+    opts = _plan_opts(layers, scale, units, merge_pairs, page, details, split, region)
+    try:
+        plan = await asyncio.to_thread(_build_plan_blocking, file.filename or "", data, opts)
+    except fp_lib.PlanError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ImportError:
+        raise HTTPException(status_code=503, detail=_PLAN_LIBS_MISSING)
+    _store_plan(db, b.id, floor, plan, file.filename)
+    db.commit()
+    return {"floor": floor, "plan": plan}
+
+
+@app.post("/floorplans/multi")
+async def save_floorplan_multi(
+    file: UploadFile = File(...),
+    mapping: str = Form(...),               # JSON {"Ground": 0, "2": 1, ...}  floor label -> region index
+    building_id: Optional[str] = Form(None),
     layers: Optional[str] = Form(None),
     scale: Optional[float] = Form(None),
     units: Optional[str] = Form(None),
@@ -643,38 +698,43 @@ async def save_floorplan(
     details: Optional[bool] = Form(None),
     db: Session = Depends(get_db),
 ):
-    """Build the plan with the chosen options and store it as this floor's layout."""
+    """One drawing that holds several floors side by side: store each region as its own floor."""
+    b = resolve_building(db, building_id)
+    try:
+        m = {str(k): int(v) for k, v in json.loads(mapping).items()}
+        assert m
+    except Exception:
+        raise HTTPException(status_code=422, detail="mapping must be a JSON object {floor: region number}")
     data = await _read_plan_upload(file)
-    opts = _plan_opts(layers, scale, units, merge_pairs, page, details)
+    base = _plan_opts(layers, scale, units, merge_pairs, page, details)
 
-    def build():
-        raw = fp_lib.extract_segments(file.filename or "", data, int(opts.get("page", 0) or 0))
-        return fp_lib.build_plan(raw, file.filename or "", opts)
+    def build_all():
+        raw = fp_lib.extract_segments(file.filename or "", data, int(base.get("page", 0) or 0))
+        return {fl: fp_lib.build_plan(raw, file.filename or "", dict(base, region=ri, split=True)) for fl, ri in m.items()}
 
     try:
-        plan = await asyncio.to_thread(build)
+        plans = await asyncio.to_thread(build_all)
     except fp_lib.PlanError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except ImportError:
         raise HTTPException(status_code=503, detail=_PLAN_LIBS_MISSING)
-    row = db.get(FloorPlan, floor)
-    if row is None:
-        row = FloorPlan(floor=floor)
-        db.add(row)
-    row.plan_json = json.dumps(plan)
-    row.source_name = file.filename
+    for fl, plan in plans.items():
+        _store_plan(db, b.id, fl, plan, file.filename)
     db.commit()
-    return {"floor": floor, "plan": plan}
+    return {"floors": list(plans), "plans": plans}
 
 
 @app.get("/floorplans")
-def list_floorplans(db: Session = Depends(get_db)):
-    return {r.floor: json.loads(r.plan_json) for r in db.query(FloorPlan).all()}
+def list_floorplans(building_id: Optional[str] = None, db: Session = Depends(get_db)):
+    b = resolve_building(db, building_id)
+    return {r.floor: json.loads(r.plan_json)
+            for r in db.query(BuildingFloorPlan).filter(BuildingFloorPlan.building_id == b.id).all()}
 
 
 @app.delete("/floorplans/{floor}")
-def delete_floorplan(floor: str, db: Session = Depends(get_db)):
-    row = db.get(FloorPlan, floor)
+def delete_floorplan(floor: str, building_id: Optional[str] = None, db: Session = Depends(get_db)):
+    b = resolve_building(db, building_id)
+    row = db.get(BuildingFloorPlan, (b.id, floor))
     if row:
         db.delete(row)
         db.commit()

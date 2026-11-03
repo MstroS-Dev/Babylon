@@ -32,6 +32,7 @@ _NEW_WORKER_COLUMNS = {
     "checked_in": "BOOLEAN NOT NULL DEFAULT 0",
     "last_status_change": "DATETIME",
     "trade": "VARCHAR",
+    "building_id": "VARCHAR",
 }
 
 
@@ -54,9 +55,39 @@ def _migrate(engine):
         conn.commit()
 
 
+DEFAULT_FLOORS = ["Ground", "2", "3", "4", "5"]
+
+
+def _ensure_default_building():
+    """First start after the buildings feature shipped: wrap everything that already exists
+    (workers, saved floor plans) into one building so nothing disappears."""
+    import json
+    from .models import Building, BuildingFloorPlan, FloorPlan, Worker
+    db = SessionLocal()
+    try:
+        if db.query(Building).count():
+            return
+        old_plans = db.query(FloorPlan).all()
+        floors = list(DEFAULT_FLOORS)
+        for p in old_plans:
+            if p.floor not in floors:
+                floors.append(p.floor)
+        b = Building(name="Main building", floors_json=json.dumps(floors), position=0)
+        db.add(b)
+        db.flush()
+        for p in old_plans:
+            db.add(BuildingFloorPlan(building_id=b.id, floor=p.floor, plan_json=p.plan_json,
+                                     source_name=p.source_name))
+        db.query(Worker).filter(Worker.building_id.is_(None)).update({Worker.building_id: b.id})
+        db.commit()
+    finally:
+        db.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate(engine)
+    _ensure_default_building()
 
 
 def get_db():

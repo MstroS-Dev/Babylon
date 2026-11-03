@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import io
 import math
+import statistics
 import os
 import re
 import shutil
@@ -568,6 +569,7 @@ def _footprint(walls: List[Dict[str, Any]]) -> Optional[List[List[List[float]]]]
         return None
 
 
+MAX_REGIONS = 12
 MAX_DETAIL_LINES = 9000
 
 
@@ -590,6 +592,57 @@ def _detail_lines(raw: Dict[str, Any], factor: float, cx: float, cz: float, half
     return out
 
 
+
+# --------------------------------------------------------------------------
+# 2b. Several floors drawn side by side in one drawing
+# --------------------------------------------------------------------------
+def find_regions(segs: List[Tuple[float, float, float, float]], cell: float = 2.5,
+                 min_share: float = 0.25, min_len: float = 12.0) -> List[Dict[str, Any]]:
+    """Group line work into separate 'plans' (e.g. Floor 1, Floor 2... laid out next to each other in model
+    space). Lines are rasterised onto a coarse grid and touching cells are flood-filled together; tiny
+    leftovers (stray symbols, title blocks) are dropped. Returned in reading order: top row first, left to right."""
+    cells: Dict[Tuple[int, int], List[int]] = {}
+    for i, (x1, z1, x2, z2) in enumerate(segs):
+        n = max(1, int(math.hypot(x2 - x1, z2 - z1) / (cell * 0.5)))
+        for k in range(n + 1):
+            t = k / n
+            c = (int((x1 + (x2 - x1) * t) // cell), int((z1 + (z2 - z1) * t) // cell))
+            cells.setdefault(c, []).append(i)
+    seen: set = set()
+    comps: List[set] = []
+    for start in cells:
+        if start in seen:
+            continue
+        stack, members = [start], set()
+        seen.add(start)
+        while stack:
+            cx_, cz_ = stack.pop()
+            members.update(cells[(cx_, cz_)])
+            for dx in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    nb = (cx_ + dx, cz_ + dz)
+                    if nb in cells and nb not in seen:
+                        seen.add(nb)
+                        stack.append(nb)
+        comps.append(members)
+    out = []
+    for members in comps:
+        L = sum(math.hypot(segs[i][2] - segs[i][0], segs[i][3] - segs[i][1]) for i in members)
+        xs = [v for i in members for v in (segs[i][0], segs[i][2])]
+        zs = [v for i in members for v in (segs[i][1], segs[i][3])]
+        out.append({"members": members, "length": L, "bbox": (min(xs), min(zs), max(xs), max(zs))})
+    if not out:
+        return []
+    biggest = max(r["length"] for r in out)
+    out = [r for r in out if r["length"] >= max(min_len, biggest * min_share)]
+    if len(out) < 2:        # one real plan (+ stray bits): nothing to split
+        return []
+    rows_h = max(8.0, 0.6 * statistics.median([r["bbox"][3] - r["bbox"][1] for r in out]))
+    out.sort(key=lambda r: (round(((r["bbox"][1] + r["bbox"][3]) / 2) / rows_h), (r["bbox"][0] + r["bbox"][2]) / 2))
+    for i, r in enumerate(out):
+        r["idx"] = i
+    return out[:MAX_REGIONS]
+
 # --------------------------------------------------------------------------
 # 3. Build the plan
 # --------------------------------------------------------------------------
@@ -610,6 +663,17 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
         raise PlanError("The selected layers contain no lines.")
 
     warnings: List[str] = []
+    regions = find_regions(segs) if opts.get("split", True) else []
+    region_info = None
+    region = 0
+    if regions:
+        region = int(opts.get("region") or 0)
+        pick = next((r for r in regions if r["idx"] == region), regions[0])
+        region = pick["idx"]
+        segs = [segs[i] for i in sorted(pick["members"])]
+        region_info = {"count": len(regions), "index": region,
+                       "all": [{"idx": r["idx"], "w": round(r["bbox"][2] - r["bbox"][0], 1),
+                                "d": round(r["bbox"][3] - r["bbox"][1], 1)} for r in regions]}
     merge_pairs = bool(opts.get("merge_pairs", True))
     default_t = float(opts.get("default_thickness", 0.15))
 
@@ -666,6 +730,7 @@ def build_plan(raw: Dict[str, Any], filename: str, opts: Optional[Dict[str, Any]
         "stats": {"walls": len(walls), "details": len(details), "total_length_m": round(sum(
             math.hypot(w["x2"] - w["x1"], w["z2"] - w["z1"]) for w in walls), 1)},
         "warnings": warnings,
+        "regions": region_info,
     }
 
 
@@ -679,5 +744,17 @@ def preview(filename: str, data: bytes, opts: Optional[Dict[str, Any]] = None) -
         plan = build_plan(raw, filename, opts)
     except PlanError as e:      # still return the layer list so the user can fix their selection
         error = str(e)
+    region_plans = None
+    if plan and plan.get("regions"):
+        region_plans = []
+        for r in plan["regions"]["all"]:
+            try:
+                p = plan if r["idx"] == plan["regions"]["index"] else build_plan(
+                    raw, filename, dict(opts, region=r["idx"], details=False))
+                region_plans.append({"idx": r["idx"], "walls": p["walls"], "footprint": p.get("footprint"),
+                                     "bounds": p["bounds"]})
+            except PlanError:
+                region_plans.append({"idx": r["idx"], "walls": [], "footprint": None, "bounds": {"w": 0, "d": 0}})
     return {"kind": raw["kind"], "page_count": raw["page_count"], "units_note": unit_note,
-            "group_hint": raw["group_hint"], "layers": layers, "plan": plan, "error": error}
+            "group_hint": raw["group_hint"], "layers": layers, "plan": plan, "error": error,
+            "region_plans": region_plans}

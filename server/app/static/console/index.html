@@ -165,6 +165,69 @@
   #isolate-btn:hover{border-color:var(--accent-dim);}
   #isolate-btn.on{border-color:var(--accent);color:var(--accent);}
 
+
+  /* ---------- Building tabs ---------- */
+  #building-tabs{position:absolute;top:50px;left:20px;right:84px;display:flex;gap:6px;align-items:center;z-index:4;
+    overflow-x:auto;scrollbar-width:thin;padding-bottom:2px;}
+  .btab{flex:none;display:flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);
+    border-radius:8px;padding:6px 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:var(--font-body);}
+  .btab:hover{border-color:var(--text-dim);color:var(--text);}
+  .btab.active{border-color:var(--accent);color:var(--accent);background:var(--panel);}
+  .btab .cnt{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);}
+  .btab .bx{display:none;margin-left:2px;color:var(--text-faint);font-size:11px;line-height:1;}
+  .btab.active .bx{display:inline;}
+  .btab .bx:hover{color:var(--danger);}
+  #btab-add{flex:none;background:transparent;border:1px dashed var(--border);color:var(--text-faint);border-radius:8px;
+    padding:6px 12px;font-size:12px;cursor:pointer;font-family:var(--font-mono);}
+  #btab-add:hover{border-color:var(--accent-dim);color:var(--accent);}
+  .rail-btn{position:relative;overflow:hidden;}
+  .rail-btn .rp{position:absolute;left:0;bottom:0;height:3px;background:var(--success);width:0;}
+  .rail-btn.active .rp{background:#191008;}
+  #steps-btn{position:absolute;top:16px;right:304px;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text-dim);border-radius:8px;padding:7px 12px;font-size:11.5px;font-family:var(--font-mono);cursor:pointer;z-index:4;}
+  #steps-btn:hover{border-color:var(--accent-dim);}
+  #steps-btn.on{border-color:var(--accent);color:var(--accent);}
+  #phase-panel{position:absolute;top:92px;right:84px;width:260px;max-height:calc(100% - 140px);overflow-y:auto;display:none;z-index:4;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.4);padding:12px 14px;}
+  #phase-panel.open{display:block;}
+  #phase-panel .pt{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;}
+  #phase-panel .pn{font-size:14px;font-weight:600;margin:2px 0 8px;}
+  #phase-bar{height:5px;border-radius:3px;background:var(--panel-2);border:1px solid var(--border);overflow:hidden;margin-bottom:10px;}
+  #phase-bar i{display:block;height:100%;width:0;background:var(--success);transition:width .25s;}
+  .ph-row{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:12.5px;color:var(--text);cursor:pointer;}
+  .ph-row.done span{color:var(--text-faint);text-decoration:line-through;}
+  .ph-row span{flex:1;}
+  .ph-row .px{opacity:0;color:var(--text-faint);font-size:11px;}
+  .ph-row:hover .px{opacity:1;}
+  .ph-row .px:hover{color:var(--danger);}
+  #phase-add{display:flex;gap:6px;margin-top:8px;}
+  #phase-add input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;}
+  #phase-add button,#phase-tpl{background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 10px;
+    font-size:12px;cursor:pointer;}
+  #phase-add button:hover,#phase-tpl:hover{border-color:var(--accent-dim);color:var(--accent);}
+  #phase-all{margin-top:12px;border-top:1px solid var(--border);padding-top:8px;font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);}
+  #bld-overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:55;}
+  #bld-overlay.open{display:flex;}
+  #bld-modal{width:400px;max-width:94vw;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  #bld-modal .ph{padding:18px 20px 12px;border-bottom:1px solid var(--border);}
+  #bld-modal .ph .t1{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;}
+  #bld-modal .ph .t2{font-size:15px;font-weight:600;margin-top:3px;}
+  #bld-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;}
+  #bld-body label.l{font-size:12px;color:var(--text-dim);display:flex;flex-direction:column;gap:5px;}
+  #bld-body input[type=text],#bld-body input[type=number]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;}
+  #bld-foot{padding:0 20px 20px;display:flex;gap:10px;flex-wrap:wrap;}
+  #bld-foot .btn{flex:1 1 auto;}
+  .w-bld{margin-top:4px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;font-size:10.5px;padding:2px 4px;max-width:150px;}
+  .w-bld.unassigned{border-color:var(--accent-2);color:var(--accent-2);}
+  .crew-sep{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.1em;padding:10px 14px 4px;}
+  #plan-regions{display:none;flex-direction:column;gap:8px;}
+  #plan-regions .rt{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;}
+  #plan-region-list{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;}
+  .plan-reg{flex:none;width:132px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);padding:6px;display:flex;flex-direction:column;gap:5px;cursor:pointer;}
+  .plan-reg.sel{border-color:var(--accent);}
+  .plan-reg canvas{width:100%;height:78px;display:block;}
+  .plan-reg select{width:100%;font-size:11px;padding:4px 6px;}
+
   /* ---------- Floor-plan import ---------- */
   #plan-overlay{position:fixed;inset:0;background:rgba(6,9,13,.6);backdrop-filter:blur(2px);display:none;
     align-items:center;justify-content:center;z-index:55;}
@@ -357,8 +420,18 @@
 
   <div id="stage">
     <div id="canvas-holder"></div>
+    <div id="building-tabs"></div>
     <div id="stage-caption">Drag to orbit · Scroll to zoom · <b>Drop a worker on a floor to place a task</b></div>
     <div id="floor-rail"><button id="rail-add" title="Add floor">+</button></div>
+    <button id="steps-btn" title="Building steps: a checklist for each floor">Steps</button>
+    <div id="phase-panel">
+      <div class="pt" id="phase-floor">Floor</div>
+      <div class="pn" id="phase-title">Steps</div>
+      <div id="phase-bar"><i></i></div>
+      <div id="phase-list"></div>
+      <div id="phase-add"><input type="text" id="phase-new" placeholder="Add a step…" maxlength="60"><button id="phase-add-btn">Add</button></div>
+      <div id="phase-all"></div>
+    </div>
     <button id="isolate-btn" title="Show only the selected floor (floors above hidden, floors below faded)">Isolate floor</button>
     <button id="plan-import-btn" title="Import a floor plan from CAD (DWG, DXF or vector PDF)">Import floor plan</button>
     <div id="wall-select-bar">
@@ -371,6 +444,24 @@
       <button id="ws-done-btn">Done</button>
     </div>
     <div id="hint"></div>
+  </div>
+</div>
+
+<div id="bld-overlay">
+  <div id="bld-modal">
+    <div class="ph"><div class="t1">Buildings</div><div class="t2">New building</div></div>
+    <div id="bld-body">
+      <label class="l">Name<input type="text" id="bld-name" placeholder="e.g. Tower B" maxlength="40"></label>
+      <label class="l">Number of floors<input type="number" id="bld-floors" value="3" min="1" max="60"></label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
+        <input type="checkbox" id="bld-phases" checked> Add the standard steps checklist to every floor</label>
+      <div style="font-size:11.5px;color:var(--text-faint);line-height:1.5;">From a drawing? Choose <b>Create &amp; import CAD</b>: if the file holds several floors side by side, they are split into floors automatically.</div>
+    </div>
+    <div id="bld-foot">
+      <button class="btn btn-ghost" id="bld-cancel">Cancel</button>
+      <button class="btn btn-ghost" id="bld-create-import">Create &amp; import CAD</button>
+      <button class="btn btn-primary" id="bld-create">Create</button>
+    </div>
   </div>
 </div>
 
@@ -404,6 +495,12 @@
             <input type="checkbox" id="plan-merge" checked> Merge double-line walls into one wall</label>
           <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
             <input type="checkbox" id="plan-details" checked> Show doors, windows, stairs &amp; furniture on the floor</label>
+        </div>
+        <div id="plan-regions">
+          <div class="rt" id="plan-regions-title"></div>
+          <div id="plan-region-list"></div>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
+            <input type="checkbox" id="plan-onefloor"> This drawing is just ONE floor (don't split it)</label>
         </div>
         <canvas id="plan-canvas" width="580" height="240"></canvas>
         <div id="plan-stats"></div>
@@ -571,7 +668,10 @@ const API = ""; // same-origin
 const PERSON_SVG = '<svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>';
 
 let workers = [];
-let floors = JSON.parse(localStorage.getItem('babylon_floors') || 'null') || ["Ground","2","3","4","5"];
+let floors = ["Ground","2","3","4","5"];          // replaced by the current building's floors once /buildings loads
+let buildings = [], currentBuildingId = null, phases = [];
+try{ currentBuildingId = localStorage.getItem('babylon_building'); }catch(_){}
+const curBuilding = ()=> buildings.find(b=>b.id === currentBuildingId) || null;
 let selectedFloorIdx = 0;
 let pendingPlacement = null; // {workerId, floorIdx, x, y}
 let dragWorker = null;
@@ -649,13 +749,19 @@ function renderCrew(){
   const list = document.getElementById('crew-list');
   if(document.querySelector('.w-trade-input')) return;   // don't wipe a trade being typed (15s refresh)
   refreshTradeControls();
-  document.getElementById('crew-count').textContent = workers.length + (workers.length===1?' worker':' workers');
-  if(!workers.length){
-    list.innerHTML = '<div id="crew-empty">No workers registered yet.</div>';
+  const mine = workers.filter(w=> w.building_id === currentBuildingId);
+  const loose = workers.filter(w=> !w.building_id);
+  const bn = curBuilding() ? curBuilding().name : 'this building';
+  document.getElementById('crew-count').textContent = mine.length + (mine.length===1?' worker':' workers') + (loose.length ? ` \u00b7 ${loose.length} unassigned` : '');
+  if(!mine.length && !loose.length){
+    list.innerHTML = `<div id="crew-empty">${workers.length ? 'No workers in ' + escapeHtml(bn) + ' yet.<br>Move one here from another building\u2019s tab.' : 'No workers registered yet.'}</div>`;
     return;
   }
   list.innerHTML = '';
-  workers.filter(w=> !crewTradeFilter || w.trade === crewTradeFilter).forEach(w=>{
+  const shown = mine.filter(w=> !crewTradeFilter || w.trade === crewTradeFilter);
+  const shownLoose = loose.filter(w=> !crewTradeFilter || w.trade === crewTradeFilter);
+  if(!shown.length && mine.length) list.innerHTML = '<div id="crew-empty">No one with that trade here.</div>';
+  const makeCards = (arr)=> arr.forEach(w=>{
     const card = document.createElement('div');
     card.className = 'worker-card';
     card.draggable = true;
@@ -667,6 +773,7 @@ function renderCrew(){
         <div class="w-name">${escapeHtml(w.name)}</div>
         <div class="w-meta">${w.language} · ${w.channel} · <span style="color:${w.checked_in ? '#1B5E20' : '#999'}">${w.checked_in ? '🟢 On shift' : '⚪ Off shift'}</span></div>
         <button class="w-trade${w.trade ? '' : ' empty'}" title="Set this worker's trade (only you can)">${w.trade ? escapeHtml(w.trade) : '+ trade'}</button>
+        <select class="w-bld${w.building_id ? '' : ' unassigned'}" title="Which building this worker belongs to (one at a time)"></select>
       </div>
       <button class="quick-add" title="Assign task without a location">+</button>
       <button class="remove-worker" title="Remove worker">&#10005;</button>`;
@@ -685,11 +792,19 @@ function renderCrew(){
       setTimeout(()=>{ dragStarted = false; }, 50);
     });
     card.addEventListener('click', (e)=>{
-      if(e.target.closest('.quick-add') || e.target.closest('.remove-worker') || e.target.closest('.w-trade') || e.target.closest('.w-trade-input')) return;
+      if(e.target.closest('.quick-add') || e.target.closest('.remove-worker') || e.target.closest('.w-trade') || e.target.closest('.w-trade-input') || e.target.closest('.w-bld')) return;
       if(dragStarted) return;
       openTaskPanel(w);
     });
     card.querySelector('.w-trade').addEventListener('click', (e)=>{ e.stopPropagation(); editTrade(card, w); });
+    (function(){
+      const sel = card.querySelector('.w-bld');
+      if(!w.building_id){ const o = document.createElement('option'); o.value = ''; o.textContent = 'Unassigned'; sel.appendChild(o); }
+      buildings.forEach(b=>{ const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; sel.appendChild(o); });
+      sel.value = w.building_id || '';
+      ['click','mousedown','dragstart'].forEach(ev=> sel.addEventListener(ev, e=> e.stopPropagation()));
+      sel.addEventListener('change', ()=> setWorkerBuilding(w, sel.value));
+    })();
     card.querySelector('.quick-add').addEventListener('click', (e)=>{
       e.stopPropagation();
       pendingPlacement = null;
@@ -715,6 +830,12 @@ function renderCrew(){
     card.addEventListener('mouseleave', hideWorkerTooltip);
     list.appendChild(card);
   });
+  makeCards(shown);
+  if(shownLoose.length){
+    const sep = document.createElement('div'); sep.className = 'crew-sep'; sep.textContent = 'Unassigned — not in any building yet';
+    list.appendChild(sep);
+    makeCards(shownLoose);
+  }
 }
 
 // ---------------- Hover tooltip: current task ----------------
@@ -852,6 +973,7 @@ async function loadTasks(){
     const r = await fetch(API + '/tasks');
     const tasks = await r.json();
     allTasks = tasks;
+    clearPins();
     tasks.filter(t=>t.location_mode!=='none' && t.floor).forEach(placePinFromTask);
     if(openPanelWorkerId) renderTaskPanel(openPanelWorkerId);
   }catch(e){ console.error(e); }
@@ -1082,6 +1204,7 @@ function buildFloors(){
     floorMeshes.push({mesh, grid, idx, label, cols, extras, slabHidden: extras.some(o=>o.userData.isFootprint)});
   });
   buildRail();
+  applyProgress();
 }
 
 // Imported floors: slab shaped like the real building + the CAD drawing (doors, windows, stairs, furniture) as a blueprint underlay
@@ -1163,12 +1286,13 @@ function buildRail(){
 document.getElementById('rail-add').addEventListener('click', ()=>{
   const n = prompt('Name this floor (e.g. "6" or "Roof")', String(floors.length));
   if(n===null || !n.trim()) return;
-  floors.push(n.trim());
-  localStorage.setItem('babylon_floors', JSON.stringify(floors));
-  buildFloors();
+  const label = n.trim();
+  if(floors.includes(label)){ toast('That floor already exists'); return; }
+  saveFloors(floors.concat([label])).then(ok=>{ if(ok){ buildFloors(); focusFloor(floors.length-1); } });
 });
 
 function highlightRail(idx){
+  if(typeof renderPhasePanel === 'function') renderPhasePanel();
   document.querySelectorAll('.rail-btn').forEach(b=>{
     b.classList.toggle('active', Number(b.dataset.idx) === idx);
   });
@@ -1448,10 +1572,19 @@ function makePinSprite(label, color){
   sp.scale.set(1.3,1.3,1.3);
   return sp;
 }
+function clearPins(){
+  if(typeof pinGroup === 'undefined' || !pinGroup) return;
+  while(pinGroup.children.length){
+    const c = pinGroup.children[0]; pinGroup.remove(c);
+    if(c.material){ if(c.material.map) c.material.map.dispose(); c.material.dispose(); }
+  }
+}
 function placePinFromTask(t){
+  if(typeof pinGroup === 'undefined' || !pinGroup) return;
   const idx = floors.indexOf(t.floor);
   if(idx === -1 || t.pin_x==null || t.pin_y==null) return;
   const w = workers.find(w=>w.id===t.worker_id);
+  if(!w || w.building_id !== currentBuildingId) return;      // pins of other buildings live on their own tab
   const initial = w ? w.name.charAt(0).toUpperCase() : '?';
   const color = t.location_mode === 'photo_checkin' ? '#ffc93c' : '#ff6a1f';
   const sprite = makePinSprite(initial, color);
@@ -1594,6 +1727,7 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
     if(modalMode === 'none') fd.append('floor', floors[selectedWall.floorIdx]);
   }
   try{
+    if(!modalWorker.building_id && currentBuildingId) await setWorkerBuilding(modalWorker, currentBuildingId);
     const r = await fetch(API + '/tasks', {method:'POST', body:fd});
     if(!r.ok) throw new Error(await r.text());
     const result = await r.json();
@@ -1622,11 +1756,12 @@ const $p = id => document.getElementById(id);
 
 async function loadFloorPlans(){
   try{
-    const r = await fetch(API + '/floorplans');
-    if(!r.ok) return;
-    serverPlans = await r.json();
-    if(scene){ clearWallSelection(); buildFloors(); }
-  }catch(e){ console.error('floor plans', e); }
+    const bid = currentBuildingId;
+    const r = await fetch(API + '/floorplans' + (bid ? '?building_id=' + encodeURIComponent(bid) : ''));
+    if(bid !== currentBuildingId) return;               // the user already switched tabs
+    serverPlans = r.ok ? await r.json() : {};
+  }catch(e){ console.error('floor plans', e); serverPlans = {}; }
+  if(scene){ clearWallSelection(); buildFloors(); focusFloor(Math.min(selectedFloorIdx, floors.length-1)); }
 }
 
 function planFloorLabel(){ return floors[Number($p('plan-floor').value)]; }
@@ -1636,8 +1771,9 @@ function refreshPlanFloorUI(){
 }
 
 function openPlanModal(){
-  planFile = null; planResult = null; planLayersSel = null;
-  $p('plan-file').value = '';
+  planFile = null; planResult = null; planLayersSel = null; planRegionSel = 0;
+  $p('plan-file').value = ''; $p('plan-onefloor').checked = false; renderPlanRegions(null);
+  $p('plan-save').textContent = 'Save floor plan';
   const sel = $p('plan-floor');
   sel.innerHTML = '';
   floors.forEach((l, i)=>{ const o = document.createElement('option'); o.value = i; o.textContent = l + (serverPlans[l] ? ' \u2713' : ''); sel.appendChild(o); });
@@ -1655,6 +1791,8 @@ function escHtml(t){ return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'
 function planFormData(){
   const fd = new FormData();
   fd.append('file', planFile);
+  if(currentBuildingId) fd.append('building_id', currentBuildingId);
+  if($p('plan-onefloor').checked) fd.append('split', 'false');
   if(planLayersSel) fd.append('layers', JSON.stringify(planLayersSel));
   if(planResult && planResult.kind === 'pdf'){
     fd.append('scale', $p('plan-scale').value || '100');
@@ -1729,18 +1867,59 @@ function renderPlanPreview(){
     return;
   }
   setPlanMsg(`Read <b>${escHtml(plan.source.filename)}</b> \u2014 ${escHtml(plan.source.units_note)}.`, false);
-  $p('plan-stats').textContent = `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall` + (plan.stats.details ? ` \u00b7 ${plan.stats.details} drawing lines` : '');
+  const multi = !!(res.region_plans && res.region_plans.length > 1) && !$p('plan-onefloor').checked;
+  renderPlanRegions(multi ? res : null);
+  $p('plan-stats').textContent = (multi ? `${res.region_plans.length} floors found in this drawing · ` : '') + `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall` + (plan.stats.details ? ` \u00b7 ${plan.stats.details} drawing lines` : '');
   $p('plan-warn').textContent = (plan.warnings || []).join(' ');
-  drawPlanPreview(plan);
+  drawPlanPreview(multi ? regionPlanFor(res, Math.min(planRegionSel, res.region_plans.length-1)) : plan);
   $p('plan-save').disabled = false;
+  $p('plan-save').textContent = multi ? `Save ${res.region_plans.length} floors` : 'Save floor plan';
 }
 
-function drawPlanPreview(plan){
-  const cv = $p('plan-canvas'), ctx = cv.getContext('2d');
+// ---- one drawing, several floors ----
+let planRegionSel = 0;
+function planTargets(n){
+  const t = floors.slice(), start = Number($p('plan-floor').value) || 0;
+  let k = floors.length + 1;
+  while(t.length < start + n){ while(t.includes(String(k))) k++; t.push(String(k)); k++; }
+  return t;
+}
+function renderPlanRegions(res){
+  const box = $p('plan-regions');
+  if(!res){ box.style.display = 'none'; $p('plan-region-list').innerHTML = ''; return; }
+  box.style.display = 'flex';
+  const n = res.region_plans.length, start = Number($p('plan-floor').value) || 0;
+  const targets = planTargets(n);
+  $p('plan-regions-title').textContent = `${n} floors found — the first goes to the floor chosen above; change any of them here`;
+  const list = $p('plan-region-list'); list.innerHTML = '';
+  res.region_plans.forEach((rp, i)=>{
+    const card = document.createElement('div'); card.className = 'plan-reg' + (i === planRegionSel ? ' sel' : '');
+    const cv = document.createElement('canvas'); cv.width = 240; cv.height = 156;
+    const sel = document.createElement('select'); sel.dataset.region = rp.idx;
+    const skip = document.createElement('option'); skip.value = ''; skip.textContent = '— skip —'; sel.appendChild(skip);
+    targets.forEach(l=>{ const o = document.createElement('option'); o.value = l; o.textContent = 'Floor ' + l + (floors.includes(l) ? '' : ' (new)'); sel.appendChild(o); });
+    sel.value = targets[start + i] || '';
+    sel.addEventListener('click', e=> e.stopPropagation());
+    card.append(cv, sel); list.appendChild(card);
+    card.addEventListener('click', ()=>{
+      planRegionSel = i;
+      list.querySelectorAll('.plan-reg').forEach((c, j)=> c.classList.toggle('sel', j === i));
+      drawPlanPreview(regionPlanFor(res, i));
+    });
+    drawPlanPreview(regionPlanFor(res, i), cv, 10);
+  });
+}
+function regionPlanFor(res, i){
+  const rp = res.region_plans[i];
+  return (res.plan.regions && res.plan.regions.index === rp.idx) ? res.plan : {bounds: rp.bounds, walls: rp.walls, footprint: rp.footprint, details: []};
+}
+
+function drawPlanPreview(plan, canvas, margin){
+  const cv = canvas || $p('plan-canvas'), ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height;
   ctx.clearRect(0,0,W,H);
   if(!plan) return;
-  const m = 18;
+  const m = margin || 18;
   const sc = Math.min((W-2*m)/Math.max(plan.bounds.w,0.1), (H-2*m)/Math.max(plan.bounds.d,0.1));
   const cs = getComputedStyle(document.documentElement);
   const col = (cs.getPropertyValue('--accent') || '#ff6a1f').trim();
@@ -1782,20 +1961,38 @@ document.getElementById('plan-import-btn').addEventListener('click', openPlanMod
 })();
 $p('plan-cancel').addEventListener('click', closePlanModal);
 $p('plan-overlay').addEventListener('click', e=>{ if(e.target.id === 'plan-overlay') closePlanModal(); });
-$p('plan-floor').addEventListener('change', refreshPlanFloorUI);
+$p('plan-floor').addEventListener('change', ()=>{ refreshPlanFloorUI(); if(planResult && planResult.region_plans && !$p('plan-onefloor').checked) renderPlanRegions(planResult); });
 $p('plan-file').addEventListener('change', e=>{
   planFile = e.target.files[0] || null;
   planLayersSel = null; planResult = null; $p('plan-page-wrap').dataset.built = '';
   if(planFile) runPlanPreview();
 });
-['plan-scale','plan-units','plan-merge','plan-details','plan-page'].forEach(id=> $p(id).addEventListener('change', schedulePlanPreview));
+['plan-scale','plan-units','plan-merge','plan-details','plan-page','plan-onefloor'].forEach(id=> $p(id).addEventListener('change', schedulePlanPreview));
 $p('plan-scale').addEventListener('input', schedulePlanPreview);
 
 $p('plan-save').addEventListener('click', async ()=>{
   if(!planFile) return;
   const label = planFloorLabel();
-  const btn = $p('plan-save'); btn.disabled = true; btn.textContent = 'Saving\u2026';
+  const btn = $p('plan-save'); btn.disabled = true; btn.textContent = 'Saving…';
+  const multiRes = (planResult && planResult.region_plans && planResult.region_plans.length > 1 && !$p('plan-onefloor').checked) ? planResult : null;
   try{
+    if(multiRes){
+      const mapping = {};
+      document.querySelectorAll('#plan-region-list select').forEach(sl=>{ if(sl.value) mapping[sl.value] = Number(sl.dataset.region); });
+      if(!Object.keys(mapping).length){ setPlanMsg('Pick a floor for at least one of the drawings.', true); return; }
+      const newLabels = Object.keys(mapping).filter(l=>!floors.includes(l));
+      if(newLabels.length && !(await saveFloors(floors.concat(newLabels)))) return;
+      const fd = planFormData(); fd.delete('split'); fd.append('mapping', JSON.stringify(mapping));
+      const r = await fetch(API + '/floorplans/multi', {method:'POST', body: fd});
+      if(!r.ok){ let d='Save failed'; try{ d=(await r.json()).detail||d; }catch(_){} setPlanMsg(escHtml(d), true); return; }
+      const j = await r.json();
+      Object.assign(serverPlans, j.plans);
+      clearWallSelection(); buildFloors(); loadPhases();
+      focusFloor(Math.max(0, Math.min(...j.floors.map(f=>floors.indexOf(f)).filter(i=>i>=0))));
+      closePlanModal(); renderTabs();
+      toast(`${j.floors.length} floors imported: ${j.floors.join(', ')}`);
+      return;
+    }
     const r = await fetch(API + '/floorplans/' + encodeURIComponent(label), {method:'PUT', body: planFormData()});
     if(!r.ok){ let d='Save failed'; try{ d=(await r.json()).detail||d; }catch(_){} setPlanMsg(escHtml(d), true); return; }
     const j = await r.json();
@@ -1811,7 +2008,7 @@ $p('plan-reset').addEventListener('click', async ()=>{
   const label = planFloorLabel();
   if(!confirm(`Go back to the generic layout for floor ${label}?`)) return;
   try{
-    await fetch(API + '/floorplans/' + encodeURIComponent(label), {method:'DELETE'});
+    await fetch(API + '/floorplans/' + encodeURIComponent(label) + '?building_id=' + encodeURIComponent(currentBuildingId || ''), {method:'DELETE'});
     delete serverPlans[label];
     clearWallSelection(); buildFloors();
     closePlanModal();
@@ -1819,14 +2016,247 @@ $p('plan-reset').addEventListener('click', async ()=>{
   }catch(e){ toast('Could not reset the plan'); }
 });
 
+
+// ==================================================================
+// Buildings (tabs) and floor steps (phases)
+// ==================================================================
+async function jsonFetch(url, opts){
+  const r = await fetch(API + url, opts);
+  if(!r.ok){ let d = 'Request failed'; try{ d = (await r.json()).detail || d; }catch(_){} throw new Error(d); }
+  return r.json();
+}
+function fdOf(obj){ const fd = new FormData(); Object.entries(obj).forEach(([k,v])=>{ if(v !== undefined && v !== null) fd.append(k, v); }); return fd; }
+
+async function loadBuildings(){
+  try{ buildings = await jsonFetch('/buildings'); }catch(e){ console.error('buildings', e); return false; }
+  if(!buildings.length) return false;
+  // one-time: floors you had added in this browser before buildings existed (additive, never removes anything)
+  try{
+    if(!localStorage.getItem('babylon_floors_migrated')){
+      const local = JSON.parse(localStorage.getItem('babylon_floors') || 'null');
+      const first = buildings[0];
+      if(Array.isArray(local)){
+        const extra = local.filter(l=>!first.floors.includes(l));
+        if(extra.length) await jsonFetch('/buildings/' + first.id, {method:'PUT', body: fdOf({floors: JSON.stringify(first.floors.concat(extra))})});
+      }
+      localStorage.setItem('babylon_floors_migrated', '1');
+      if(Array.isArray(local)) buildings = await jsonFetch('/buildings');
+    }
+  }catch(e){ console.error(e); }
+  if(!buildings.some(b=>b.id === currentBuildingId)) currentBuildingId = buildings[0].id;
+  try{ localStorage.setItem('babylon_building', currentBuildingId); }catch(_){}
+  return true;
+}
+
+async function applyBuilding(){
+  const b = curBuilding(); if(!b) return;
+  floors = b.floors.slice();
+  selectedFloorIdx = Math.min(Math.max(0, selectedFloorIdx), floors.length - 1);
+  serverPlans = {}; phases = [];
+  renderTabs(); renderCrew();
+  const plans = loadFloorPlans();
+  loadPhases();
+  await plans;
+  loadTasks();
+}
+
+function switchBuilding(id){
+  if(id === currentBuildingId) return;
+  currentBuildingId = id;
+  try{ localStorage.setItem('babylon_building', id); }catch(_){}
+  selectedFloorIdx = 0;
+  if(typeof clearWallSelection === 'function') clearWallSelection();
+  cancelPending();
+  applyBuilding();
+}
+function cancelPending(){ pendingPlacement = null; }
+
+function renderTabs(){
+  const box = document.getElementById('building-tabs');
+  box.innerHTML = '';
+  buildings.forEach(b=>{
+    const t = document.createElement('div'); t.className = 'btab' + (b.id === currentBuildingId ? ' active' : '');
+    const n = workers.filter(w=>w.building_id === b.id).length;
+    t.innerHTML = `<span>${escapeHtml(b.name)}</span><span class="cnt">${n}\u{1F477}</span>` + (buildings.length > 1 ? '<span class="bx" title="Delete this building">✕</span>' : '');
+    t.title = 'Double-click to rename';
+    t.addEventListener('click', e=>{
+      if(e.target.closest('.bx')){ deleteBuilding(b); return; }
+      switchBuilding(b.id);
+    });
+    t.addEventListener('dblclick', ()=> renameBuilding(b));
+    box.appendChild(t);
+  });
+  const add = document.createElement('button'); add.id = 'btab-add'; add.textContent = '+ Building'; add.title = 'Create a new building';
+  add.addEventListener('click', openBuildingModal);
+  box.appendChild(add);
+}
+async function renameBuilding(b){
+  const n = prompt('Building name', b.name);
+  if(n === null || !n.trim() || n.trim() === b.name) return;
+  try{ await jsonFetch('/buildings/' + b.id, {method:'PUT', body: fdOf({name: n.trim()})}); await loadBuildings(); renderTabs(); renderCrew(); }
+  catch(e){ toast(e.message); }
+}
+async function deleteBuilding(b){
+  const n = workers.filter(w=>w.building_id === b.id).length;
+  if(!confirm(`Delete building "${b.name}"? Its floor plans and steps are removed.` + (n ? ` Its ${n} worker(s) become unassigned (tasks stay).` : ''))) return;
+  try{
+    await jsonFetch('/buildings/' + b.id, {method:'DELETE'});
+    await loadWorkers(); await loadBuildings();
+    selectedFloorIdx = 0; await applyBuilding();
+  }catch(e){ toast(e.message); }
+}
+async function saveFloors(list){
+  try{
+    const nb = await jsonFetch('/buildings/' + currentBuildingId, {method:'PUT', body: fdOf({floors: JSON.stringify(list)})});
+    const i = buildings.findIndex(b=>b.id === nb.id); if(i >= 0) buildings[i] = nb;
+    floors = nb.floors.slice();
+    loadPhases();
+    return true;
+  }catch(e){ toast(e.message); return false; }
+}
+async function setWorkerBuilding(w, bid){
+  try{
+    await jsonFetch('/workers/' + w.id + '/building', {method:'PUT', body: fdOf({building_id: bid || ''})});
+    w.building_id = bid || null;
+    renderTabs(); renderCrew(); loadTasks();
+    if(bid && bid !== currentBuildingId){ const b = buildings.find(x=>x.id === bid); toast(`${w.name} moved to ${b ? b.name : 'the other building'}`); }
+  }catch(e){ toast(e.message); }
+}
+
+// ---- new building dialog ----
+let bldThenImport = false;
+function openBuildingModal(){
+  document.getElementById('bld-name').value = '';
+  document.getElementById('bld-floors').value = 3;
+  document.getElementById('bld-phases').checked = true;
+  document.getElementById('bld-overlay').classList.add('open');
+  setTimeout(()=> document.getElementById('bld-name').focus(), 50);
+}
+function closeBuildingModal(){ document.getElementById('bld-overlay').classList.remove('open'); }
+async function createBuilding(thenImport){
+  const name = document.getElementById('bld-name').value.trim();
+  if(!name){ document.getElementById('bld-name').focus(); return; }
+  const n = Math.max(1, Math.min(60, Number(document.getElementById('bld-floors').value) || 1));
+  try{
+    const nb = await jsonFetch('/buildings', {method:'POST', body: fdOf({name, floor_count: String(n), with_phases: document.getElementById('bld-phases').checked ? 'true' : 'false'})});
+    closeBuildingModal();
+    await loadBuildings();
+    currentBuildingId = nb.id; try{ localStorage.setItem('babylon_building', nb.id); }catch(_){}
+    selectedFloorIdx = 0; cancelPending();
+    await applyBuilding();
+    toast(`Building "${nb.name}" created`);
+    if(thenImport) openPlanModal();
+  }catch(e){ toast(e.message); }
+}
+document.getElementById('bld-cancel').addEventListener('click', closeBuildingModal);
+document.getElementById('bld-overlay').addEventListener('click', e=>{ if(e.target.id === 'bld-overlay') closeBuildingModal(); });
+document.getElementById('bld-create').addEventListener('click', ()=> createBuilding(false));
+document.getElementById('bld-create-import').addEventListener('click', ()=> createBuilding(true));
+document.getElementById('bld-name').addEventListener('keydown', e=>{ if(e.key === 'Enter') createBuilding(false); });
+
+// ---- floor steps ----
+let stepsOpen = true;
+try{ stepsOpen = localStorage.getItem('babylon_steps') !== '0'; }catch(_){}
+async function loadPhases(){
+  const bid = currentBuildingId; if(!bid) return;
+  try{
+    const list = await jsonFetch('/buildings/' + bid + '/phases');
+    if(bid !== currentBuildingId) return;
+    phases = list;
+  }catch(e){ console.error('phases', e); phases = []; }
+  renderPhasePanel(); applyProgress();
+}
+function phaseStats(label){
+  const ps = phases.filter(p=>p.floor === label);
+  return {done: ps.filter(p=>p.done).length, total: ps.length};
+}
+function renderPhasePanel(){
+  const panel = document.getElementById('phase-panel');
+  document.getElementById('steps-btn').classList.toggle('on', stepsOpen);
+  panel.classList.toggle('open', stepsOpen);
+  if(!stepsOpen) return;
+  const label = floors[selectedFloorIdx];
+  if(label === undefined) return;
+  const ps = phases.filter(p=>p.floor === label).sort((a,b)=>a.position - b.position);
+  const st = phaseStats(label);
+  document.getElementById('phase-floor').textContent = 'Floor ' + label;
+  document.getElementById('phase-title').textContent = st.total ? `${st.done} of ${st.total} steps done` : 'No steps yet';
+  document.getElementById('phase-bar').firstElementChild.style.width = (st.total ? 100 * st.done / st.total : 0) + '%';
+  const list = document.getElementById('phase-list'); list.innerHTML = '';
+  if(!ps.length){
+    const b = document.createElement('button'); b.id = 'phase-tpl'; b.textContent = 'Add the standard steps';
+    b.addEventListener('click', async ()=>{
+      try{ await jsonFetch('/buildings/' + currentBuildingId + '/phases/apply-template', {method:'POST', body: fdOf({floor: label})}); loadPhases(); }
+      catch(e){ toast(e.message); }
+    });
+    list.appendChild(b);
+  }
+  ps.forEach(p=>{
+    const row = document.createElement('label'); row.className = 'ph-row' + (p.done ? ' done' : '');
+    row.innerHTML = `<input type="checkbox" ${p.done ? 'checked' : ''}><span>${escapeHtml(p.title)}</span><i class="px" title="Remove step">✕</i>`;
+    row.querySelector('input').addEventListener('change', async (e)=>{
+      const v = e.target.checked; p.done = v; renderPhasePanel(); applyProgress();
+      try{ await jsonFetch('/phases/' + p.id, {method:'PUT', body: fdOf({done: v ? 'true' : 'false'})}); }
+      catch(err){ p.done = !v; renderPhasePanel(); applyProgress(); toast(err.message); }
+    });
+    row.querySelector('.px').addEventListener('click', async (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      try{ await jsonFetch('/phases/' + p.id, {method:'DELETE'}); phases = phases.filter(x=>x.id !== p.id); renderPhasePanel(); applyProgress(); }
+      catch(err){ toast(err.message); }
+    });
+    list.appendChild(row);
+  });
+  const tot = phases.length, dn = phases.filter(p=>p.done).length;
+  document.getElementById('phase-all').textContent = tot ? `Whole building: ${dn} / ${tot} steps (${Math.round(100*dn/tot)}%)` : '';
+}
+document.getElementById('steps-btn').addEventListener('click', ()=>{
+  stepsOpen = !stepsOpen;
+  try{ localStorage.setItem('babylon_steps', stepsOpen ? '1' : '0'); }catch(_){}
+  renderPhasePanel();
+});
+async function addPhaseFromInput(){
+  const inp = document.getElementById('phase-new'), t = inp.value.trim();
+  if(!t) return;
+  try{
+    const p = await jsonFetch('/buildings/' + currentBuildingId + '/phases', {method:'POST', body: fdOf({floor: floors[selectedFloorIdx], title: t})});
+    phases.push(p); inp.value = ''; renderPhasePanel(); applyProgress();
+  }catch(e){ toast(e.message); }
+}
+document.getElementById('phase-add-btn').addEventListener('click', addPhaseFromInput);
+document.getElementById('phase-new').addEventListener('keydown', e=>{ if(e.key === 'Enter') addPhaseFromInput(); });
+
+// progress shown on the rail and as the floor slab colour (grey-blue = not started, green = finished)
+function applyProgress(){
+  document.querySelectorAll('.rail-btn').forEach(btn=>{
+    const label = floors[Number(btn.dataset.idx)];
+    const st = phaseStats(label);
+    let bar = btn.querySelector('.rp');
+    if(!bar){ bar = document.createElement('i'); bar.className = 'rp'; btn.appendChild(bar); }
+    bar.style.width = (st.total ? 100 * st.done / st.total : 0) + '%';
+    btn.title = 'Floor ' + label + (st.total ? ` · ${st.done}/${st.total} steps` : '');
+  });
+  if(typeof floorMeshes === 'undefined') return;
+  const from = new THREE.Color(0x16212c), to = new THREE.Color(0x1f6b45);
+  floorMeshes.forEach(f=>{
+    const st = phaseStats(f.label), k = st.total ? st.done / st.total : 0;
+    const c = from.clone().lerp(to, k);
+    f.mesh.material.color.copy(c);
+    (f.extras||[]).forEach(o=>{ if(o.userData.isFootprint) o.material.color.copy(c); });
+  });
+}
+
+async function bootAll(){
+  await loadWorkers();
+  const ok = await loadBuildings();
+  if(ok) await applyBuilding(); else { loadFloorPlans(); loadTasks(); }
+}
+
 // ---------------- boot ----------------
-loadWorkers();
-loadTasks();
 connectWs();
 setInterval(loadWorkers, 15000);
 try{
   initScene();
-  loadFloorPlans();
+  bootAll();
 }catch(e){
   console.error('3D building view failed to load:', e);
   document.getElementById('canvas-holder').innerHTML =

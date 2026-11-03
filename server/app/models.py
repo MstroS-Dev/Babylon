@@ -23,6 +23,7 @@ class Worker(Base):
     checked_in = Column(Boolean, nullable=False, default=False)
     last_status_change = Column(DateTime, nullable=True)
     trade = Column(String, nullable=True)  # e.g. "Painter" — set ONLY by the manager from the console
+    building_id = Column(String, nullable=True)  # the ONE building this worker belongs to (manager decides); None = unassigned
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     tasks = relationship("Task", back_populates="worker")
@@ -135,3 +136,35 @@ class FloorPlan(Base):
     plan_json = Column(Text, nullable=False)          # clean walls JSON from app.floorplan
     source_name = Column(String, nullable=True)       # original filename
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class Building(Base):
+    """A building = a console tab. It owns its floors (ordered labels), floor plans and phase checklists."""
+    __tablename__ = "buildings"
+    id = Column(String, primary_key=True, default=gen_id)
+    name = Column(String, nullable=False)
+    floors_json = Column(Text, nullable=False, default="[]")   # JSON list of floor labels, bottom to top
+    position = Column(Integer, nullable=False, default=0)       # tab order
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class BuildingFloorPlan(Base):
+    """Imported CAD plan for one floor of one building."""
+    __tablename__ = "building_floor_plans"
+    building_id = Column(String, ForeignKey("buildings.id"), primary_key=True)
+    floor = Column(String, primary_key=True)
+    plan_json = Column(Text, nullable=False)
+    source_name = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class FloorPhase(Base):
+    """One checklist step of a floor (e.g. 'Plastering'). The console shows done floors as built."""
+    __tablename__ = "floor_phases"
+    id = Column(String, primary_key=True, default=gen_id)
+    building_id = Column(String, ForeignKey("buildings.id"), nullable=False)
+    floor = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    done = Column(Boolean, nullable=False, default=False)
+    done_at = Column(DateTime, nullable=True)
+    position = Column(Integer, nullable=False, default=0)
