@@ -145,6 +145,16 @@
     border-radius:10px;padding:8px 10px 8px 14px;opacity:0;pointer-events:none;
     transition:opacity .15s, transform .15s;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:5;}
   #wall-select-bar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
+  #ws-multi-btn{background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:var(--font-mono);}
+  #ws-multi-btn.sel{border-color:var(--accent);color:var(--accent);}
+  #prof-link{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text-dim);font-size:12px;text-decoration:none;}
+  #prof-link:hover{color:var(--accent);border-color:var(--accent-dim);}
+  #prof-brief{display:none;margin-top:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-dim);}
+  #prof-brief .pb-t{font-family:var(--font-mono);font-size:10px;color:var(--accent-2);margin-bottom:3px;}
+  #prof-brief .pb-x{white-space:pre-wrap;max-height:90px;overflow-y:auto;color:var(--text);}
+  #prof-brief button{margin-top:6px;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;}
+  #prof-brief button:hover{border-color:var(--accent-dim);color:var(--accent);}
   #ws-mode-seg{display:flex;gap:4px;}
   #ws-mode-seg button{background:transparent;border:1px solid var(--border);color:var(--text-dim);
     border-radius:7px;padding:5px 10px;font-size:11.5px;cursor:pointer;white-space:nowrap;}
@@ -414,6 +424,7 @@
       <button id="theme-toggle" title="Switch theme" style="background:var(--panel-2);border:1px solid var(--border);
         border-radius:20px;width:30px;height:30px;cursor:pointer;color:var(--text-dim);display:flex;
         align-items:center;justify-content:center;font-size:14px;">☀︎</button>
+      <a id="prof-link" href="professions.html" title="Define professions and what each one is supposed to do">Professions</a>
       <button id="lang-toggle" title="עברית / English">EN | עב</button>
       <div id="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
     </div>
@@ -449,9 +460,10 @@
     <button id="plan-import-btn" title="Import a floor plan from CAD (DWG, DXF or vector PDF)">Import floor plan</button>
     <div id="wall-select-bar">
       <div id="ws-mode-seg">
-        <button data-mode="segments" class="sel" title="Click one segment, Ctrl/Cmd-drag for a range">Segments</button>
-        <button data-mode="whole" title="Click a wall to select all of it">Whole wall</button>
+        <button data-mode="segments" class="sel" title="Click one segment, Ctrl/Cmd-drag for a range, Shift+click to add more">Segments</button>
+        <button data-mode="whole" title="Click a wall to select all of it, Shift+click to add more walls">Whole wall</button>
       </div>
+      <button id="ws-multi-btn" title="Add to the selection instead of replacing it (same as holding Shift)">Add more</button>
       <span id="wall-select-label">Click a wall to mark the workspace</span>
       <button id="ws-cancel-btn">Cancel</button>
       <button id="ws-done-btn">Done</button>
@@ -545,6 +557,8 @@
       <div class="field">
         <label>Description</label>
         <textarea id="f-desc" placeholder="What needs to happen, materials, safety notes…"></textarea>
+        <div id="prof-brief"><div class="pb-t">Profession guidance</div><div class="pb-x"></div>
+          <button type="button" id="prof-brief-use">Use as description</button></div>
       </div>
       <div class="field">
         <label>Required proof photo <span style="text-transform:none;color:var(--text-faint);">(optional — AI checks every upload against this)</span></label>
@@ -569,7 +583,7 @@
       </div>
       <div class="field" id="note-field" style="display:none;">
         <label>Spot description <span style="text-transform:none;color:var(--text-faint);">(optional, sent to worker)</span></label>
-        <input type="text" id="f-note" placeholder="e.g. north stairwell, by the electrical panel" maxlength="140">
+        <input type="text" id="f-note" placeholder="e.g. north stairwell, by the electrical panel" maxlength="400">
       </div>
     </div>
     <div id="modal-foot">
@@ -702,21 +716,33 @@ function toast(msg){
   toast._t = setTimeout(()=>el.classList.remove('show'), 2600);
 }
 
+// ---------------- Professions ----------------
+let professions = [];           // [{id,name,name_he,prompt,worker_count}] from /professions (defined on the Professions page)
+const profByName = n => professions.find(p=>p.name === n) || null;
+function profLabel(name){        // what to show for a trade: the Hebrew name in Hebrew mode (when one is defined)
+  if(!name) return '';
+  const p = profByName(name);
+  return (window.LANG === 'he' && p && p.name_he) ? p.name_he : name;
+}
+async function loadProfessions(){
+  try{ const r = await fetch(API + '/professions'); if(r.ok) professions = await r.json(); }catch(e){ console.error('professions', e); }
+  renderCrew();
+}
+
 // ---------------- Crew list ----------------
-const DEFAULT_TRADES = ['Foreman','Engineer','Electrician','Plumber','Carpenter','Mason','Plasterer','Painter','Tiler','Welder','HVAC','Laborer'];
 let crewTradeFilter = '';
 
 function refreshTradeControls(){
   const used = [...new Set(workers.map(w=>w.trade).filter(Boolean))];
   const dl = document.getElementById('trade-list');
   dl.innerHTML = '';
-  [...new Set([...used, ...DEFAULT_TRADES])].forEach(t=>{ const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
+  [...new Set([...professions.map(p=>profLabel(p.name)), ...used.map(profLabel)])].forEach(t=>{ const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
   const sel = document.getElementById('crew-filter');
   if(!used.length){ sel.style.display = 'none'; crewTradeFilter = ''; return; }
   if(crewTradeFilter && !used.includes(crewTradeFilter)) crewTradeFilter = '';
   sel.innerHTML = '';
   const all = document.createElement('option'); all.value = ''; all.textContent = 'All trades'; sel.appendChild(all);
-  used.sort().forEach(t=>{ const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+  used.sort((a,b)=> profLabel(a).localeCompare(profLabel(b))).forEach(t=>{ const o = document.createElement('option'); o.value = t; o.textContent = profLabel(t); sel.appendChild(o); });
   sel.value = crewTradeFilter;
   sel.style.display = 'block';
 }
@@ -729,7 +755,8 @@ async function saveTrade(w, value){
     if(!r.ok) throw new Error(await r.text());
     const j = await r.json();
     w.trade = j.trade;
-    toast(j.trade ? `${w.name} is now: ${j.trade}` : `Trade cleared for ${w.name}`);
+    toast(j.trade ? `${w.name} is now: ${profLabel(j.trade)}` : `Trade cleared for ${w.name}`);
+    loadProfessions();                      // typing a new trade creates a profession
   }catch(err){
     console.error(err);
     toast('Could not save the trade');
@@ -743,13 +770,13 @@ function editTrade(card, w){
   card.draggable = false;                       // otherwise the browser drags instead of selecting text
   const input = document.createElement('input');
   input.className = 'w-trade-input'; input.setAttribute('list', 'trade-list');
-  input.maxLength = 40; input.placeholder = 'e.g. Painter'; input.value = w.trade || '';
+  input.maxLength = 40; input.placeholder = 'e.g. Painter'; input.value = profLabel(w.trade);
   chip.replaceWith(input);
   input.focus(); input.select();
   let done = false;
   const finish = (save)=>{
     if(done) return; done = true;
-    if(save && input.value.trim() !== (w.trade || '')) saveTrade(w, input.value);
+    if(save && input.value.trim() !== profLabel(w.trade)) saveTrade(w, input.value);
     else renderCrew();
   };
   input.addEventListener('keydown', e=>{
@@ -787,7 +814,7 @@ function renderCrew(){
       <div class="w-info">
         <div class="w-name">${escapeHtml(w.name)}</div>
         <div class="w-meta">${w.language} · ${w.channel} · <span style="color:${w.checked_in ? '#1B5E20' : '#999'}">${w.checked_in ? '🟢 On shift' : '⚪ Off shift'}</span></div>
-        <button class="w-trade${w.trade ? '' : ' empty'}" title="Set this worker's trade (only you can)">${w.trade ? escapeHtml(w.trade) : '+ trade'}</button>
+        <button class="w-trade${w.trade ? '' : ' empty'}" title="Set this worker's trade (only you can)">${w.trade ? escapeHtml(profLabel(w.trade)) : '+ trade'}</button>
         <select class="w-bld${w.building_id ? '' : ' unassigned'}" title="Which building this worker belongs to (one at a time)"></select>
       </div>
       <button class="quick-add" title="Assign task without a location">+</button>
@@ -1029,8 +1056,9 @@ let scene, camera, renderer, raycaster, floorMeshes = [], pinGroup, ghostSprite;
 let wallGroup, wallSegMeshes = [], floorPlans = {};
 let isolateFloor = true, floorK = [];
 try{ isolateFloor = localStorage.getItem('babylon_isolate') !== '0'; }catch(_){}
-let selectedWall = null; // { floorIdx, wallId, from, to }
-let dragSelecting = false, dragSelectAnchor = null;
+let selectedWall = null; // first selected stretch { floorIdx, wallId, from, to } (kept for convenience); the full list is getSelectionRanges()
+let wsMulti = false;      // "Add more" toggle (same as holding Shift) — handy on touch screens
+let dragSelecting = false, dragSelectAnchor = null, dragSelectBase = null;
 let workspaceSelectMode = false, wallSelectWholeMode = false;
 let _wallScratchVec = null;
 let camYaw = 0.6, camPitch = 0.5, camDist = 34;
@@ -1416,42 +1444,85 @@ function raycastWallFromEvent(e){
   return hits.length ? hits[0].object : null;
 }
 
+// every selected segment is flagged in userData.selected; a "stretch" is a run of neighbouring segments on one wall
+function getSelectionRanges(){
+  const by = new Map();
+  wallSegMeshes.forEach(sg=>{
+    if(!sg.userData.selected) return;
+    const k = sg.userData.floorIdx + '|' + sg.userData.wallId;
+    if(!by.has(k)) by.set(k, {floorIdx: sg.userData.floorIdx, wallId: sg.userData.wallId, idx: []});
+    by.get(k).idx.push(sg.userData.segIdx);
+  });
+  const out = [];
+  by.forEach(v=>{
+    v.idx.sort((a,b)=>a-b);
+    let a = v.idx[0], p = a;
+    for(let q = 1; q <= v.idx.length; q++){
+      const x = v.idx[q];
+      if(x !== p + 1){ out.push({floorIdx: v.floorIdx, wallId: v.wallId, from: a, to: p}); a = x; }
+      p = x;
+    }
+  });
+  return out;
+}
+function selectionLabels(ranges){ return ranges.map(r=> tr(wallRangeLabel(r.floorIdx, r.wallId, r.from, r.to))); }
+
 function refreshWallSelectionUI(){
   const barLabel = document.getElementById('wall-select-label');
   const readout = document.getElementById('workspace-readout');
-  if(selectedWall){
-    const txt = wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to);
-    const count = selectedWall.to - selectedWall.from + 1;
-    if(barLabel) barLabel.textContent = `Floor ${floors[selectedWall.floorIdx]} \u00b7 ${txt} (${count} seg)`;
-    if(readout){ readout.innerHTML = `Floor <b>${floors[selectedWall.floorIdx]}</b> \u00b7 ${txt}`; readout.classList.add('show'); }
+  const ranges = getSelectionRanges();
+  selectedWall = ranges[0] || null;
+  if(ranges.length){
+    const fl = floors[ranges[0].floorIdx];
+    const segs = ranges.reduce((n, r)=> n + r.to - r.from + 1, 0);
+    if(ranges.length === 1){
+      const txt = wallRangeLabel(ranges[0].floorIdx, ranges[0].wallId, ranges[0].from, ranges[0].to);
+      if(barLabel) barLabel.textContent = `Floor ${fl} · ${txt} (${segs} seg)`;
+    } else if(barLabel){
+      barLabel.textContent = `Floor ${fl} · ${ranges.length} areas · ${segs} segments`;
+    }
+    if(readout){ readout.innerHTML = `${escHtml(tr('Floor'))} <b>${escHtml(fl)}</b> · ${escHtml(selectionLabels(ranges).join('; '))}`; readout.classList.add('show'); }
   } else {
-    if(barLabel) barLabel.textContent = wallSelectWholeMode ? 'Click a wall to select all of it' : 'Click a segment \u00b7 Ctrl/Cmd-drag for a range';
+    if(barLabel) barLabel.textContent = wallSelectWholeMode ? 'Click a wall to select all of it · Shift+click to add more' : 'Click a segment · Ctrl/Cmd-drag for a range · Shift+click to add more';
     if(readout){ readout.textContent = ''; readout.classList.remove('show'); }
   }
 }
 
 function clearWallSelection(){
-  wallSegMeshes.forEach(s=> s.userData.selected = false);
+  wallSegMeshes.forEach(sg=> sg.userData.selected = false);
   selectedWall = null;
   refreshWallSelectionUI();
 }
 
-function applyWallSelection(floorIdx, wallId, from, to){
-  wallSegMeshes.forEach(s=>{
-    s.userData.selected = (s.userData.floorIdx===floorIdx && s.userData.wallId===wallId
-                           && s.userData.segIdx>=from && s.userData.segIdx<=to);
-  });
-  selectedWall = { floorIdx, wallId, from, to };
+function inRange(sg, floorIdx, wallId, from, to){
+  const u = sg.userData;
+  return u.floorIdx === floorIdx && u.wallId === wallId && u.segIdx >= from && u.segIdx <= to;
+}
+// mode: 'replace' (default) | 'add' | 'toggle'.  base: optional Set of segments to start from (used while drag-extending).
+function applyWallSelection(floorIdx, wallId, from, to, mode, base){
+  mode = mode || 'replace';
+  const hit = wallSegMeshes.filter(sg=> inRange(sg, floorIdx, wallId, from, to));
+  if(base){ wallSegMeshes.forEach(sg=> sg.userData.selected = base.has(sg)); }
+  else if(mode === 'replace'){ wallSegMeshes.forEach(sg=> sg.userData.selected = false); }
+  // a task lives on one floor: starting a selection on another floor drops the old one
+  wallSegMeshes.forEach(sg=>{ if(sg.userData.selected && sg.userData.floorIdx !== floorIdx) sg.userData.selected = false; });
+  const allOn = hit.length > 0 && hit.every(sg=> sg.userData.selected);
+  hit.forEach(sg=> sg.userData.selected = (mode === 'toggle' && !base) ? !allOn : true);
+  refreshWallSelectionUI();
+}
+function setSelectionFromRanges(ranges){
+  wallSegMeshes.forEach(sg=> sg.userData.selected = ranges.some(r=> inRange(sg, r.floorIdx, r.wallId, r.from, r.to)));
   refreshWallSelectionUI();
 }
 
-function selectWallFromClick(seg){
+function selectWallFromClick(seg, additive){
   const u = seg.userData;
+  const mode = additive ? 'toggle' : 'replace';
   if(wallSelectWholeMode){
     const wall = floorPlans[u.floorIdx].walls.find(w=>w.id===u.wallId);
-    applyWallSelection(u.floorIdx, u.wallId, 0, wall.segCount-1);
+    applyWallSelection(u.floorIdx, u.wallId, 0, wall.segCount-1, mode);
   } else {
-    applyWallSelection(u.floorIdx, u.wallId, u.segIdx, u.segIdx);
+    applyWallSelection(u.floorIdx, u.wallId, u.segIdx, u.segIdx, mode);
   }
 }
 
@@ -1462,7 +1533,7 @@ function onDragSelectMove(e){
           || seg.userData.floorIdx !== dragSelectAnchor.floorIdx) return;
   const from = Math.min(dragSelectAnchor.segIdx, seg.userData.segIdx);
   const to   = Math.max(dragSelectAnchor.segIdx, seg.userData.segIdx);
-  applyWallSelection(dragSelectAnchor.floorIdx, dragSelectAnchor.wallId, from, to);
+  applyWallSelection(dragSelectAnchor.floorIdx, dragSelectAnchor.wallId, from, to, 'add', dragSelectBase || new Set());
 }
 function onDragSelectUp(){
   dragSelecting = false;
@@ -1477,7 +1548,9 @@ function onPointerDown(e){
     if(seg){
       dragSelecting = true;
       dragSelectAnchor = { floorIdx: seg.userData.floorIdx, wallId: seg.userData.wallId, segIdx: seg.userData.segIdx };
-      applyWallSelection(seg.userData.floorIdx, seg.userData.wallId, seg.userData.segIdx, seg.userData.segIdx);
+      const additive = e.shiftKey || wsMulti;
+      dragSelectBase = additive ? new Set(wallSegMeshes.filter(x=>x.userData.selected)) : new Set();
+      applyWallSelection(seg.userData.floorIdx, seg.userData.wallId, seg.userData.segIdx, seg.userData.segIdx, 'add', dragSelectBase);
       window.addEventListener('pointermove', onDragSelectMove);
       window.addEventListener('pointerup', onDragSelectUp);
       return;
@@ -1502,8 +1575,9 @@ function onPointerUp(e){
   window.removeEventListener('pointerup', onPointerUp);
   if(workspaceSelectMode && e){
     const moved = Math.hypot(e.clientX-clickStartX, e.clientY-clickStartY);
-    if(moved < 4 && clickCandidateSeg) selectWallFromClick(clickCandidateSeg);
-    else if(moved < 4) clearWallSelection();
+    const additive = !!(e.shiftKey || wsMulti);
+    if(moved < 4 && clickCandidateSeg) selectWallFromClick(clickCandidateSeg, additive);
+    else if(moved < 4 && !additive) clearWallSelection();
   }
   clickCandidateSeg = null;
 }
@@ -1619,7 +1693,14 @@ function openModal(worker, defaultMode){
   modalMode = defaultMode;
   clearWallSelection();
   document.getElementById('workspace-field').style.display = pendingPlacement ? 'block' : 'none';
-  document.getElementById('modal-worker-name').textContent = worker.name + (worker.trade ? ' \u00b7 ' + worker.trade : '');
+  document.getElementById('modal-worker-name').textContent = worker.name + (worker.trade ? ' \u00b7 ' + profLabel(worker.trade) : '');
+  const prof = worker.trade ? profByName(worker.trade) : null, brief = document.getElementById('prof-brief');
+  if(prof && prof.prompt){
+    brief.style.display = 'block';
+    brief.querySelector('.pb-t').textContent = tr('Profession guidance') + ' \u00b7 ' + profLabel(worker.trade);
+    brief.querySelector('.pb-x').textContent = prof.prompt;
+    brief.dataset.prompt = prof.prompt;
+  } else { brief.style.display = 'none'; brief.dataset.prompt = ''; }
   document.getElementById('modal-avatar').innerHTML = worker.photo_url
     ? `<img src="${worker.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
     : PERSON_SVG;
@@ -1652,10 +1733,11 @@ function exitWorkspaceMode(){
 }
 document.getElementById('btn-mark-workspace').addEventListener('click', ()=>{
   if(!pendingPlacement) return;
-  wallSnapshot = selectedWall ? {...selectedWall} : null;
+  wallSnapshot = getSelectionRanges();
   document.getElementById('overlay').classList.remove('open');
   workspaceSelectMode = true;
   wallSelectWholeMode = false;
+  wsMulti = false; document.getElementById('ws-multi-btn').classList.remove('sel');
   document.querySelectorAll('#ws-mode-seg button').forEach(b=> b.classList.toggle('sel', b.dataset.mode==='segments'));
   refreshWallSelectionUI();
   document.getElementById('wall-select-bar').classList.add('show');
@@ -1673,21 +1755,29 @@ document.querySelectorAll('#ws-mode-seg button').forEach(btn=>{
     clearWallSelection();   // avoid a confusing mixed state when switching modes
   });
 });
+document.getElementById('ws-multi-btn').addEventListener('click', ()=>{
+  wsMulti = !wsMulti;
+  document.getElementById('ws-multi-btn').classList.toggle('sel', wsMulti);
+});
 document.getElementById('ws-done-btn').addEventListener('click', ()=>{
-  if(selectedWall){
+  const ranges = getSelectionRanges();
+  if(ranges.length){
     const noteEl = document.getElementById('f-note');
-    if(!noteEl.value.trim()){
-      noteEl.value = tr(wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to));
-    }
+    if(!noteEl.value.trim()) noteEl.value = selectionLabels(ranges).join('; ');
   }
   exitWorkspaceMode();
   reopenModalAfterWorkspace();
 });
 document.getElementById('ws-cancel-btn').addEventListener('click', ()=>{
-  if(wallSnapshot) applyWallSelection(wallSnapshot.floorIdx, wallSnapshot.wallId, wallSnapshot.from, wallSnapshot.to);
+  if(wallSnapshot && wallSnapshot.length) setSelectionFromRanges(wallSnapshot);
   else clearWallSelection();
   exitWorkspaceMode();
   reopenModalAfterWorkspace();
+});
+document.getElementById('prof-brief-use').addEventListener('click', ()=>{
+  const d = document.getElementById('f-desc'), p = document.getElementById('prof-brief').dataset.prompt || '';
+  d.value = d.value.trim() ? d.value.trim() + '\n' + p : p;
+  d.focus();
 });
 document.getElementById('btn-cancel').addEventListener('click', closeModal);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -1736,11 +1826,13 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
     const note = document.getElementById('f-note').value.trim();
     if(note) fd.append('location_note', note);
   }
-  if(selectedWall){
-    fd.append('wall_id', selectedWall.wallId);
-    fd.append('seg_from', String(selectedWall.from));
-    fd.append('seg_to', String(selectedWall.to));
-    if(modalMode === 'none') fd.append('floor', floors[selectedWall.floorIdx]);
+  const wsRanges = getSelectionRanges();
+  if(wsRanges.length){
+    fd.append('wall_id', wsRanges[0].wallId);                 // first stretch (older clients/apps read these)
+    fd.append('seg_from', String(wsRanges[0].from));
+    fd.append('seg_to', String(wsRanges[0].to));
+    fd.append('workspace', JSON.stringify(wsRanges.map(r=>({wall_id: r.wallId, seg_from: r.from, seg_to: r.to}))));
+    if(modalMode === 'none') fd.append('floor', floors[wsRanges[0].floorIdx]);
   }
   try{
     if(!modalWorker.building_id && currentBuildingId) await setWorkerBuilding(modalWorker, currentBuildingId);
@@ -2262,6 +2354,7 @@ function applyProgress(){
 }
 
 async function bootAll(){
+  await loadProfessions();
   await loadWorkers();
   const ok = await loadBuildings();
   if(ok) await applyBuilding(); else { loadFloorPlans(); loadTasks(); }

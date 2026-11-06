@@ -28,14 +28,17 @@ def _image_block(path_or_bytes, media_type="image/jpeg"):
     }
 
 
-def review_task(task_title: str, task_description: str, before_photo_paths, after_photo_paths) -> str:
+def review_task(task_title: str, task_description: str, before_photo_paths, after_photo_paths,
+                profession_prompt: str = None) -> str:
     content = [
         {
             "type": "text",
             "text": (
                 f"You're reviewing a completed construction task for a site manager.\n\n"
                 f"Task: {task_title}\n"
-                f"Description: {task_description}\n\n"
+                f"Description: {task_description}\n"
+                + (f"What this worker's profession is expected to do (written by the site manager): {profession_prompt}\n" if profession_prompt else "")
+                + "\n"
                 f"Below are the 'before' photos the worker submitted when starting, "
                 f"followed by the 'after' photos submitted on completion. "
                 f"Briefly note (2-4 sentences) whether the work looks consistent with "

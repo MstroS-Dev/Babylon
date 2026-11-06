@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Babylon · Professions</title>
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121922; --panel-2:#0e141c; --border:#20303f; --text:#e9eef3; --text-dim:#7d8ea1; --text-faint:#4d5c6c;
+    --accent:#ff6a1f; --accent-dim:#a8481a; --accent-2:#ffc93c; --success:#3ecf7e; --danger:#ff4d5e;
+    --font-display:'Space Grotesk','Heebo',sans-serif; --font-body:'IBM Plex Sans','Heebo',sans-serif; --font-mono:'IBM Plex Mono','Heebo',monospace;
+  }
+  html[data-theme="light"]{
+    --bg:#f4f6f8; --panel:#ffffff; --panel-2:#eef1f5; --border:#d6dde4; --text:#141a20; --text-dim:#5c6b7a; --text-faint:#96a3b0;
+    --accent-dim:#ffcda6; --accent-2:#b8790a; --success:#1f9d5c; --danger:#d9313f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);}
+  html.rtl *{letter-spacing:0 !important;text-transform:none !important;}
+  #top{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--border);background:var(--panel);}
+  #top .l{display:flex;align-items:center;gap:14px;}
+  #top .brand{font-family:var(--font-display);font-weight:700;letter-spacing:.08em;}
+  #back{color:var(--text-dim);text-decoration:none;font-size:13px;border:1px solid var(--border);border-radius:20px;padding:6px 12px;background:var(--panel-2);}
+  #back:hover{color:var(--accent);border-color:var(--accent-dim);}
+  #lang-toggle{background:var(--panel-2);border:1px solid var(--border);border-radius:20px;height:30px;padding:0 11px;cursor:pointer;color:var(--text-dim);font-size:12px;font-family:var(--font-mono);}
+  #lang-toggle:hover{color:var(--accent);border-color:var(--accent-dim);}
+  main{max-width:860px;margin:0 auto;padding:28px 20px 80px;}
+  html.rtl main{direction:rtl;}
+  .eyebrow{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;}
+  h1{font-family:var(--font-display);font-size:26px;margin:4px 0 6px;}
+  p.lead{color:var(--text-dim);font-size:14px;line-height:1.6;margin:0 0 22px;max-width:680px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+  .card.new{border-style:dashed;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row > label{flex:1 1 220px;}
+  label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-dim);margin-bottom:10px;}
+  input[type=text],textarea{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-size:14px;font-family:inherit;width:100%;}
+  textarea{min-height:84px;resize:vertical;line-height:1.5;}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent);}
+  .foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .foot .meta{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin-inline-end:auto;}
+  .btn{border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-family:inherit;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#191008;}
+  .btn.danger{color:var(--danger);}
+  .btn.danger:hover{border-color:var(--danger);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .ok{color:var(--success);font-size:12px;opacity:0;transition:opacity .2s;}
+  .ok.show{opacity:1;}
+  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:10px 16px;font-size:13px;opacity:0;pointer-events:none;transition:all .2s;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #empty{color:var(--text-faint);font-size:13px;padding:10px 0;}
+</style>
+<script>document.documentElement.dataset.theme = (function(){ try{ return localStorage.getItem('babylon_theme') || 'dark'; }catch(_){ return 'dark'; } })();</script>
+</head>
+<body>
+<div id="top">
+  <div class="l"><span class="brand">BABYLON</span><a id="back" href="./">Back to the console</a></div>
+  <button id="lang-toggle" title="עברית / English">EN | עב</button>
+</div>
+<main>
+  <div class="eyebrow">Site Console</div>
+  <h1>Professions</h1>
+  <p class="lead">Define the trades on your site. For each one you can optionally write what that profession is supposed to be doing. The text appears when you assign a task to a worker of that profession (you can drop it into the task description), and it is given to the AI that checks their photos.</p>
+
+  <div class="card new">
+    <div class="eyebrow" style="margin-bottom:10px;">New profession</div>
+    <div class="row">
+      <label class="f">Name<input type="text" id="n-name" maxlength="40" placeholder="e.g. Glazier"></label>
+      <label class="f">Hebrew name (optional)<input type="text" id="n-he" maxlength="40" placeholder="למשל: זגג"></label>
+    </div>
+    <label class="f">What are they supposed to be doing? (optional)
+      <textarea id="n-prompt" maxlength="4000" placeholder="e.g. Measures and installs window frames and glass, seals joints, checks that every window opens and closes. Works only after plastering is done."></textarea></label>
+    <div class="foot"><button class="btn primary" id="n-add">Add profession</button></div>
+  </div>
+
+  <div id="list"></div>
+</main>
+<div id="toast"></div>
+<script src="i18n.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), 2400); }
+$('lang-toggle').addEventListener('click', ()=> setLang(window.LANG === 'he' ? 'en' : 'he'));
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  if(!r.ok){ let d = 'Request failed'; try{ d = (await r.json()).detail || d; }catch(_){} throw new Error(d); }
+  return r.json();
+}
+const fd = o => { const f = new FormData(); Object.entries(o).forEach(([k,v])=> f.append(k, v)); return f; };
+
+async function load(){
+  let list = [];
+  try{ list = await api('/professions'); }catch(e){ toast(e.message); }
+  const box = $('list'); box.innerHTML = '';
+  if(!list.length){ box.innerHTML = '<div id="empty">No professions yet.</div>'; return; }
+  list.forEach(p=>{
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = `
+      <div class="row">
+        <label class="f">Name<input type="text" class="i-name" maxlength="40"></label>
+        <label class="f">Hebrew name (optional)<input type="text" class="i-he" maxlength="40"></label>
+      </div>
+      <label class="f">What are they supposed to be doing? (optional)<textarea class="i-prompt" maxlength="4000"></textarea></label>
+      <div class="foot"><span class="meta"></span><span class="ok">Saved</span>
+        <button class="btn danger b-del">Delete</button><button class="btn primary b-save">Save</button></div>`;
+    c.querySelector('.i-name').value = p.name;
+    c.querySelector('.i-he').value = p.name_he || '';
+    c.querySelector('.i-prompt').value = p.prompt || '';
+    c.querySelector('.meta').textContent = p.worker_count + (p.worker_count === 1 ? ' worker' : ' workers');
+    c.querySelector('.b-save').addEventListener('click', async (e)=>{
+      const b = e.target; b.disabled = true;
+      try{
+        await api('/professions/' + p.id, {method:'PUT', body: fd({name: c.querySelector('.i-name').value, name_he: c.querySelector('.i-he').value, prompt: c.querySelector('.i-prompt').value})});
+        const ok = c.querySelector('.ok'); ok.classList.add('show'); setTimeout(()=>ok.classList.remove('show'), 1600);
+      }catch(err){ toast(err.message); }
+      b.disabled = false;
+    });
+    c.querySelector('.b-del').addEventListener('click', async ()=>{
+      const msg = `Delete "${p.name}"?` + (p.worker_count ? ` ${p.worker_count} worker(s) will be left without a profession.` : '');
+      if(!confirm(tr(msg))) return;
+      try{ await api('/professions/' + p.id, {method:'DELETE'}); load(); }catch(err){ toast(err.message); }
+    });
+    box.appendChild(c);
+  });
+}
+$('n-add').addEventListener('click', async ()=>{
+  const name = $('n-name').value.trim();
+  if(!name){ $('n-name').focus(); return; }
+  try{
+    await api('/professions', {method:'POST', body: fd({name, name_he: $('n-he').value, prompt: $('n-prompt').value})});
+    $('n-name').value = ''; $('n-he').value = ''; $('n-prompt').value = '';
+    toast(tr('Profession added'));
+    load();
+  }catch(err){ toast(err.message); }
+});
+load();
+</script>
+</body>
+</html>

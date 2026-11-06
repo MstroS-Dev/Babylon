@@ -32,7 +32,8 @@ def _image_block(path: str, media_type: str = "image/jpeg"):
     }
 
 
-def verify_photo(task_title: str, task_description: str, photo_requirement: str, photo_path: str) -> dict:
+def verify_photo(task_title: str, task_description: str, photo_requirement: str, photo_path: str,
+                 profession_prompt: str = None) -> dict:
     """Ask Claude whether the photo actually shows what was asked for.
 
     Returns {"verdict": "match" | "no_match" | "unclear", "explanation": str}.
@@ -44,7 +45,9 @@ def verify_photo(task_title: str, task_description: str, photo_requirement: str,
         "the photo actually shows what was specifically requested.\n\n"
         f"Task: {task_title}\n"
         f"Task description: {task_description}\n"
-        f"What this photo specifically needs to show: {photo_requirement}\n\n"
+        f"What this photo specifically needs to show: {photo_requirement}\n"
+        + (f"Background on the worker's profession (written by the site manager): {profession_prompt}\n" if profession_prompt else "")
+        + "\n"
         "Respond with ONLY a JSON object and nothing else - no markdown fences, "
         "no preamble. Format exactly:\n"
         '{"verdict": "match", "explanation": "..."}\n\n'

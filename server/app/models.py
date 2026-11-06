@@ -77,6 +77,7 @@ class Task(Base):
     wall_id = Column(String, nullable=True)         # which wall (N/E/S/W/I1/I2) the workspace is on
     seg_from = Column(Integer, nullable=True)       # first wall segment of the workspace
     seg_to = Column(Integer, nullable=True)         # last wall segment (inclusive)
+    workspace_json = Column(Text, nullable=True)    # JSON list of {wall_id, seg_from, seg_to}: ALL marked stretches (wall_id/seg_* above hold the first)
     checkin_photo_url = Column(String, nullable=True)     # worker's photo_checkin submission
     checkin_approved = Column(Boolean, nullable=True)     # manager's approval of the check-in photo
 
@@ -168,3 +169,15 @@ class FloorPhase(Base):
     done = Column(Boolean, nullable=False, default=False)
     done_at = Column(DateTime, nullable=True)
     position = Column(Integer, nullable=False, default=0)
+
+
+class Profession(Base):
+    """A trade the manager defines (Painter, Electrician...). Workers reference it by name in Worker.trade.
+    `prompt` is optional guidance on what this profession is supposed to be doing; it is shown when
+    assigning tasks and given to the AI photo review as context."""
+    __tablename__ = "professions"
+    id = Column(String, primary_key=True, default=gen_id)
+    name = Column(String, nullable=False, unique=True)
+    name_he = Column(String, nullable=True)
+    prompt = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

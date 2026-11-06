@@ -117,7 +117,27 @@
     "That floor doesn't exist in this building.":'הקומה הזו לא קיימת בבניין.', 'Give the step a name.':'תנו שם לשלב.',
     'Step not found':'השלב לא נמצא', 'This floor already has steps.':'לקומה הזו כבר יש שלבים.', 'Request failed':'הבקשה נכשלה',
     'Switch to dark theme':'מעבר לערכת נושא כהה', 'Switch to light theme (better in direct sun)':'מעבר לערכת נושא בהירה (טובה יותר בשמש ישירה)',
-    'Main building':'בניין ראשי', 'layer':'שכבות'
+    'Main building':'בניין ראשי', 'layer':'שכבות',
+    // professions page + task brief
+    'Professions':'מקצועות', 'Define professions and what each one is supposed to do':'הגדרת מקצועות ומה כל אחד אמור לעשות',
+    'Back to the console':'חזרה ללוח הבקרה',
+    'Define the trades on your site. For each one you can optionally write what that profession is supposed to be doing. The text appears when you assign a task to a worker of that profession (you can drop it into the task description), and it is given to the AI that checks their photos.':'הגדירו את המקצועות באתר. לכל מקצוע אפשר לכתוב, אם רוצים, מה בעל המקצוע אמור לעשות. הטקסט מופיע כשמשבצים משימה לעובד במקצוע הזה (אפשר להעתיק אותו לתיאור המשימה), והוא מועבר גם לבינה המלאכותית שבודקת את התמונות שלהם.',
+    'New profession':'מקצוע חדש', 'Hebrew name (optional)':'שם בעברית (לא חובה)',
+    'What are they supposed to be doing? (optional)':'מה הם אמורים לעשות? (לא חובה)',
+    'e.g. Glazier':'למשל: Glazier',
+    'e.g. Measures and installs window frames and glass, seals joints, checks that every window opens and closes. Works only after plastering is done.':'למשל: מודד ומתקין משקופי חלונות וזכוכית, אוטם חיבורים, בודק שכל חלון נפתח ונסגר. עובד רק אחרי שהטיח הסתיים.',
+    'Add profession':'הוספת מקצוע', 'Save':'שמירה', 'Saved':'נשמר', 'Delete':'מחיקה',
+    'No professions yet.':'עדיין אין מקצועות.', 'Profession added':'המקצוע נוסף',
+    'Give the profession a name.':'תנו שם למקצוע.', 'A profession with this name already exists.':'מקצוע בשם הזה כבר קיים.',
+    'Profession not found':'המקצוע לא נמצא',
+    'Profession guidance':'הנחיות המקצוע', 'Use as description':'שימוש כתיאור',
+    // multi-select of wall stretches
+    'Add more':'הוספה לבחירה',
+    'Add to the selection instead of replacing it (same as holding Shift)':'הוספה לבחירה במקום החלפתה (כמו לחיצה על Shift)',
+    'Click a segment · Ctrl/Cmd-drag for a range · Shift+click to add more':'לחצו על קטע · ‏Ctrl/Cmd וגרירה לטווח · ‏Shift ולחיצה להוספה',
+    'Click a wall to select all of it · Shift+click to add more':'לחצו על קיר כדי לבחור את כולו · ‏Shift ולחיצה להוספת קירות',
+    'Click one segment, Ctrl/Cmd-drag for a range, Shift+click to add more':'לחיצה על קטע אחד, ‏Ctrl/Cmd וגרירה לטווח, ‏Shift ולחיצה להוספה',
+    'Click a wall to select all of it, Shift+click to add more walls':'לחצו על קיר כדי לבחור את כולו, ‏Shift ולחיצה להוספת קירות'
   };
 
   var NAMES = {north:'צפוני', south:'דרומי', east:'מזרחי', west:'מערבי'};
@@ -138,6 +158,10 @@
     [/^(.+) ✓$/, function(m, t){ return t(m[1]) + ' ✓'; }],
     [/^(\d+) workers?$/, function(m){ return m[1] + ' עובדים'; }],
     [/^(\d+) workers? · (\d+) unassigned$/, function(m){ return m[1] + ' עובדים · ' + m[2] + ' לא משויכים'; }],
+    [/^(\d+) areas$/, function(m){ return m[1] + ' אזורים'; }],
+    [/^(\d+) segments$/, function(m){ return m[1] + ' קטעים'; }],
+    [/^Delete "(.+)"\?(?: (\d+) worker\(s\) will be left without a profession\.)?$/, function(m){
+      return 'למחוק את "' + m[1] + '"?' + (m[2] ? ' ' + m[2] + ' עובדים יישארו בלי מקצוע.' : ''); }],
     [/^(\d+) tasks?$/, function(m){ return m[1] + ' משימות'; }],
     [/^No workers in (.+) yet\.$/, function(m){ return 'עדיין אין עובדים ב' + m[1] + '.'; }],
     [/^Move one here from another building’s tab\.$/, function(){ return 'העבירו לכאן עובד מלשונית של בניין אחר.'; }],

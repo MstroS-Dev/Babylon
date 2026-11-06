@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .db import init_db, get_db
 from .models import Worker, Task, Message, TaskPhoto, ShiftEvent, FloorPlan, BuildingFloorPlan
 from .buildings import router as buildings_router, resolve_building
+from .professions import router as professions_router, ensure_profession, profession_prompt_for
 from .translate import translate_text
 from .claude_review import review_task
 from .photo_review import verify_photo
@@ -41,6 +42,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 init_db()
 app.include_router(buildings_router)
+app.include_router(professions_router)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
@@ -166,8 +168,8 @@ def set_worker_trade(worker_id: str, trade: Optional[str] = Form(None), db: Sess
     w = db.get(Worker, worker_id)
     if not w:
         raise HTTPException(status_code=404, detail="Worker not found")
-    t = " ".join((trade or "").split())[:40]
-    w.trade = t or None
+    p = ensure_profession(db, trade)          # reuse an existing profession (English or Hebrew name) or create it
+    w.trade = p.name if p else None
     db.commit()
     return {"id": w.id, "trade": w.trade}
 
@@ -228,6 +230,20 @@ LOCATION_INSTRUCTIONS = {
 }
 
 
+def _clean_workspace(raw: Optional[str], wall_id, seg_from, seg_to) -> Optional[str]:
+    """Validate the list of marked wall stretches; fall back to the single legacy range."""
+    items = []
+    if raw:
+        try:
+            for it in json.loads(raw)[:40]:
+                items.append({"wall_id": str(it["wall_id"])[:20], "seg_from": int(it["seg_from"]), "seg_to": int(it["seg_to"])})
+        except Exception:
+            raise HTTPException(422, "workspace must be a JSON list of {wall_id, seg_from, seg_to}")
+    elif wall_id is not None and seg_from is not None and seg_to is not None:
+        items = [{"wall_id": wall_id, "seg_from": seg_from, "seg_to": seg_to}]
+    return json.dumps(items) if items else None
+
+
 @app.post("/tasks")
 async def create_task(
     worker_id: str = Form(...),
@@ -243,6 +259,7 @@ async def create_task(
     wall_id: Optional[str] = Form(None),
     seg_from: Optional[int] = Form(None),
     seg_to: Optional[int] = Form(None),
+    workspace: Optional[str] = Form(None),        # JSON list of {wall_id, seg_from, seg_to}: every stretch the manager marked
     photo_requirement: Optional[str] = Form(None),  # e.g. "the cement blocks by the north wall"
     db: Session = Depends(get_db),
 ):
@@ -257,7 +274,8 @@ async def create_task(
                 detailed_description=detailed_description, status="assigned",
                 location_mode=location_mode, floor=floor, pin_x=pin_x, pin_y=pin_y,
                 location_note=location_note, photo_requirement=photo_requirement,
-                wall_id=wall_id, seg_from=seg_from, seg_to=seg_to)
+                wall_id=wall_id, seg_from=seg_from, seg_to=seg_to,
+                workspace_json=_clean_workspace(workspace, wall_id, seg_from, seg_to))
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -331,6 +349,7 @@ def list_tasks(db: Session = Depends(get_db)):
             "location_mode": t.location_mode, "floor": t.floor,
             "pin_x": t.pin_x, "pin_y": t.pin_y, "location_note": t.location_note,
             "wall_id": t.wall_id, "seg_from": t.seg_from, "seg_to": t.seg_to,
+            "workspace": json.loads(t.workspace_json) if t.workspace_json else [],
             "checkin_photo_url": t.checkin_photo_url, "checkin_approved": t.checkin_approved,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "in_progress_at": t.in_progress_at.isoformat() if t.in_progress_at else None,
@@ -403,7 +422,7 @@ async def upload_task_photo(
         if task.photo_requirement:
             try:
                 verdict_data = await asyncio.to_thread(
-                    verify_photo, task.title, task.description, task.photo_requirement, path
+                    verify_photo, task.title, task.description, task.photo_requirement, path, profession_prompt_for(db, worker)
                 )
             except Exception as e:
                 verdict_data = {"verdict": "unclear", "explanation": f"(AI review failed: {e})"}
@@ -445,7 +464,8 @@ async def upload_task_photo(
             after_paths = [os.path.join(UPLOAD_DIR, u.split("/uploads/")[-1])
                             for u in (task.after_photo_urls or "").split(",") if u]
             if before_paths and after_paths:
-                task.claude_review = review_task(task.title, task.description, before_paths, after_paths)
+                task.claude_review = review_task(task.title, task.description, before_paths, after_paths,
+                                                 profession_prompt_for(db, task.worker))
         except Exception as e:
             task.claude_review = f"(review failed: {e})"
 

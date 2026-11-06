@@ -22,6 +22,7 @@ _NEW_TASK_COLUMNS = {
     "wall_id": "VARCHAR",
     "seg_from": "INTEGER",
     "seg_to": "INTEGER",
+    "workspace_json": "TEXT",
 }
 
 _NEW_MESSAGE_COLUMNS = {
@@ -84,10 +85,37 @@ def _ensure_default_building():
         db.close()
 
 
+DEFAULT_PROFESSIONS = [
+    ("Foreman", "מנהל עבודה"), ("Engineer", "מהנדס"), ("Electrician", "חשמלאי"), ("Plumber", "אינסטלטור"),
+    ("Carpenter", "נגר"), ("Mason", "בנאי"), ("Plasterer", "טייח"), ("Painter", "צבעי"), ("Tiler", "רצף"),
+    ("Welder", "רתך"), ("HVAC", "טכנאי מיזוג"), ("Laborer", "פועל"),
+]
+
+
+def _ensure_professions():
+    """Seed the usual trades (with Hebrew names) once, and make sure every trade a worker already has exists."""
+    from .models import Profession, Worker
+    db = SessionLocal()
+    try:
+        if db.query(Profession).count() == 0:
+            for en, he in DEFAULT_PROFESSIONS:
+                db.add(Profession(name=en, name_he=he))
+            db.flush()
+        known = {p.name.lower() for p in db.query(Profession).all()}
+        for (t,) in db.query(Worker.trade).filter(Worker.trade.isnot(None)).distinct().all():
+            if t and t.lower() not in known:
+                db.add(Profession(name=t))
+                known.add(t.lower())
+        db.commit()
+    finally:
+        db.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate(engine)
     _ensure_default_building()
+    _ensure_professions()
 
 
 def get_db():
