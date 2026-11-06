@@ -726,7 +726,7 @@ function profLabel(name){        // what to show for a trade: the Hebrew name in
 }
 async function loadProfessions(){
   try{ const r = await fetch(API + '/professions'); if(r.ok) professions = await r.json(); }catch(e){ console.error('professions', e); }
-  renderCrew();
+  renderCrew(true);
 }
 
 // ---------------- Crew list ----------------
@@ -756,40 +756,49 @@ async function saveTrade(w, value){
     const j = await r.json();
     w.trade = j.trade;
     toast(j.trade ? `${w.name} is now: ${profLabel(j.trade)}` : `Trade cleared for ${w.name}`);
-    loadProfessions();                      // typing a new trade creates a profession
+    await loadProfessions();                // choosing "new profession" creates one
   }catch(err){
     console.error(err);
     toast('Could not save the trade');
   }
-  renderCrew();
+  renderCrew(true);
 }
 
 function editTrade(card, w){
   const chip = card.querySelector('.w-trade');
   if(!chip) return;
-  card.draggable = false;                       // otherwise the browser drags instead of selecting text
-  const input = document.createElement('input');
-  input.className = 'w-trade-input'; input.setAttribute('list', 'trade-list');
-  input.maxLength = 40; input.placeholder = 'e.g. Painter'; input.value = profLabel(w.trade);
-  chip.replaceWith(input);
-  input.focus(); input.select();
+  card.draggable = false;                       // otherwise the browser drags instead of using the control
+  const sel = document.createElement('select');
+  sel.className = 'w-trade-input';
+  const add = (v, t)=>{ const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+  add('', tr('No profession'));
+  const names = professions.map(p=>p.name);
+  if(w.trade && !names.includes(w.trade)) names.push(w.trade);
+  names.sort((a,b)=> profLabel(a).localeCompare(profLabel(b))).forEach(n=> add(n, profLabel(n)));
+  add('__new__', tr('+ New profession…'));
+  sel.value = w.trade || '';
+  chip.replaceWith(sel);
+  sel.focus();
   let done = false;
-  const finish = (save)=>{
+  const finish = (val)=>{
     if(done) return; done = true;
-    if(save && input.value.trim() !== profLabel(w.trade)) saveTrade(w, input.value);
-    else renderCrew();
+    if(val === undefined || val === (w.trade || '')) renderCrew(true);
+    else saveTrade(w, val);
   };
-  input.addEventListener('keydown', e=>{
-    if(e.key === 'Enter') finish(true);
-    else if(e.key === 'Escape') finish(false);
+  sel.addEventListener('change', ()=>{
+    if(sel.value === '__new__'){
+      const n = prompt(tr('New profession name'));
+      finish(n && n.trim() ? n.trim() : undefined);
+    } else finish(sel.value);
   });
-  input.addEventListener('blur', ()=> finish(true));
-  input.addEventListener('click', e=> e.stopPropagation());
+  sel.addEventListener('keydown', e=>{ if(e.key === 'Escape') finish(undefined); });
+  sel.addEventListener('blur', ()=> setTimeout(()=> finish(undefined), 200));
+  sel.addEventListener('click', e=> e.stopPropagation());
 }
 
-function renderCrew(){
+function renderCrew(force){
   const list = document.getElementById('crew-list');
-  if(document.querySelector('.w-trade-input')) return;   // don't wipe a trade being typed (15s refresh)
+  if(!force && document.querySelector('.w-trade-input')) return;   // don't wipe a trade being chosen (15s refresh)
   refreshTradeControls();
   const mine = workers.filter(w=> w.building_id === currentBuildingId);
   const loose = workers.filter(w=> !w.building_id);
@@ -2161,7 +2170,7 @@ async function applyBuilding(){
   floors = b.floors.slice();
   selectedFloorIdx = Math.min(Math.max(0, selectedFloorIdx), floors.length - 1);
   serverPlans = {}; phases = [];
-  renderTabs(); renderCrew();
+  renderTabs(); renderCrew(true);
   const plans = loadFloorPlans();
   loadPhases();
   await plans;
@@ -2226,7 +2235,7 @@ async function setWorkerBuilding(w, bid){
   try{
     await jsonFetch('/workers/' + w.id + '/building', {method:'PUT', body: fdOf({building_id: bid || ''})});
     w.building_id = bid || null;
-    renderTabs(); renderCrew(); loadTasks();
+    renderTabs(); renderCrew(true); loadTasks();
     if(bid && bid !== currentBuildingId){ const b = buildings.find(x=>x.id === bid); toast(`${w.name} moved to ${b ? b.name : 'the other building'}`); }
   }catch(e){ toast(e.message); }
 }

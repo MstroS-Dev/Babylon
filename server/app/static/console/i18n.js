@@ -132,6 +132,7 @@
     'Profession not found':'המקצוע לא נמצא',
     'Profession guidance':'הנחיות המקצוע', 'Use as description':'שימוש כתיאור',
     // multi-select of wall stretches
+    'No profession':'ללא מקצוע', '+ New profession…':'+ מקצוע חדש…', 'New profession name':'שם המקצוע החדש',
     'Add more':'הוספה לבחירה',
     'Add to the selection instead of replacing it (same as holding Shift)':'הוספה לבחירה במקום החלפתה (כמו לחיצה על Shift)',
     'Click a segment · Ctrl/Cmd-drag for a range · Shift+click to add more':'לחצו על קטע · ‏Ctrl/Cmd וגרירה לטווח · ‏Shift ולחיצה להוספה',
