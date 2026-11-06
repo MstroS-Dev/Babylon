@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/logo-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/logo-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Heebo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   :root{
@@ -29,9 +29,9 @@
     --wa-color:#3ecf7e;
     --stage-glow:#101823;
     --radius:10px;
-    --font-display:'Space Grotesk', sans-serif;
-    --font-body:'IBM Plex Sans', sans-serif;
-    --font-mono:'IBM Plex Mono', monospace;
+    --font-display:'Space Grotesk','Heebo', sans-serif;
+    --font-body:'IBM Plex Sans','Heebo', sans-serif;
+    --font-mono:'IBM Plex Mono','Heebo', monospace;
   }
   html[data-theme="light"]{
     --bg:#f4f6f8;
@@ -165,6 +165,18 @@
   #isolate-btn:hover{border-color:var(--accent-dim);}
   #isolate-btn.on{border-color:var(--accent);color:var(--accent);}
 
+
+  /* ---------- Hebrew / right-to-left: the frame (crew left, 3D right) stays put, text and panels flip ---------- */
+  #lang-toggle{background:var(--panel-2);border:1px solid var(--border);border-radius:20px;height:30px;padding:0 11px;cursor:pointer;
+    color:var(--text-dim);font-size:12px;font-family:var(--font-mono);}
+  #lang-toggle:hover{color:var(--accent);border-color:var(--accent-dim);}
+  html.rtl #crew, html.rtl #task-panel, html.rtl #phase-panel, html.rtl #modal, html.rtl #plan-modal, html.rtl #bld-modal,
+  html.rtl #aw-modal, html.rtl #toast, html.rtl #wall-select-bar, html.rtl #w-tooltip,
+  html.rtl #stage-caption, html.rtl #hint, html.rtl #workspace-readout{direction:rtl;}
+  html.rtl *{letter-spacing:0 !important;text-transform:none !important;}
+  html.rtl #stage-caption{max-width:46%;}
+  html.rtl .w-trade, html.rtl .w-bld{text-align:right;}
+  html.rtl #phase-add input{text-align:right;}
 
   /* ---------- Building tabs ---------- */
   #building-tabs{position:absolute;top:50px;left:20px;right:84px;display:flex;gap:6px;align-items:center;z-index:4;
@@ -402,6 +414,7 @@
       <button id="theme-toggle" title="Switch theme" style="background:var(--panel-2);border:1px solid var(--border);
         border-radius:20px;width:30px;height:30px;cursor:pointer;color:var(--text-dim);display:flex;
         align-items:center;justify-content:center;font-size:14px;">☀︎</button>
+      <button id="lang-toggle" title="עברית / English">EN | עב</button>
       <div id="status"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></div>
     </div>
   </div>
@@ -455,7 +468,7 @@
       <label class="l">Number of floors<input type="number" id="bld-floors" value="3" min="1" max="60"></label>
       <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer;">
         <input type="checkbox" id="bld-phases" checked> Add the standard steps checklist to every floor</label>
-      <div style="font-size:11.5px;color:var(--text-faint);line-height:1.5;">From a drawing? Choose <b>Create &amp; import CAD</b>: if the file holds several floors side by side, they are split into floors automatically.</div>
+      <div style="font-size:11.5px;color:var(--text-faint);line-height:1.5;">From a drawing? Choose “Create &amp; import CAD”: if the file holds several floors side by side, they are split into floors automatically.</div>
     </div>
     <div id="bld-foot">
       <button class="btn btn-ghost" id="bld-cancel">Cancel</button>
@@ -474,7 +487,7 @@
         <select id="plan-floor"></select>
         <input type="file" id="plan-file" accept=".dxf,.pdf,.dwg,application/pdf">
       </div>
-      <div id="plan-msg">Upload your CAD file: <b>.dwg</b>, <b>.dxf</b> or a vector <b>.pdf</b> exported from CAD.</div>
+      <div id="plan-msg">Upload your CAD file (.dwg, .dxf or a vector .pdf exported from CAD).</div>
       <div id="plan-options" style="display:none;flex-direction:column;gap:12px;">
         <div>
           <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">
@@ -608,6 +621,7 @@
 
 <div id="toast"></div>
 
+<script src="i18n.js"></script>
 <script>
 // ---------------- Theme ----------------
 function applyThemeIcon(){
@@ -665,6 +679,7 @@ document.getElementById('aw-submit').addEventListener('click', async ()=>{
 });
 
 const API = ""; // same-origin
+document.getElementById('lang-toggle').addEventListener('click', ()=> setLang(window.LANG === 'he' ? 'en' : 'he'));
 const PERSON_SVG = '<svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>';
 
 let workers = [];
@@ -812,7 +827,7 @@ function renderCrew(){
     });
     card.querySelector('.remove-worker').addEventListener('click', async (e)=>{
       e.stopPropagation();
-      if(!confirm(`Remove ${w.name}? This also deletes their task history.`)) return;
+      if(!confirm(tr(`Remove ${w.name}? This also deletes their task history.`))) return;
       try{
         const r = await fetch(API + '/workers/' + w.id, { method: 'DELETE' });
         if(!r.ok) throw new Error(await r.text());
@@ -1275,7 +1290,7 @@ function buildRail(){
   floors.forEach((label, idx)=>{
     const btn = document.createElement('button');
     btn.className = 'rail-btn';
-    btn.textContent = label.length > 3 ? label.slice(0,3) : label;
+    const shown = tr(label); btn.textContent = shown.length > 3 ? shown.slice(0,3) : shown;
     btn.title = 'Floor ' + label;
     btn.dataset.idx = idx;
     btn.addEventListener('click', ()=> focusFloor(idx));
@@ -1284,7 +1299,7 @@ function buildRail(){
   highlightRail(selectedFloorIdx);
 }
 document.getElementById('rail-add').addEventListener('click', ()=>{
-  const n = prompt('Name this floor (e.g. "6" or "Roof")', String(floors.length));
+  const n = prompt(tr('Name this floor (e.g. "6" or "Roof")'), String(floors.length));
   if(n===null || !n.trim()) return;
   const label = n.trim();
   if(floors.includes(label)){ toast('That floor already exists'); return; }
@@ -1662,7 +1677,7 @@ document.getElementById('ws-done-btn').addEventListener('click', ()=>{
   if(selectedWall){
     const noteEl = document.getElementById('f-note');
     if(!noteEl.value.trim()){
-      noteEl.value = wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to);
+      noteEl.value = tr(wallRangeLabel(selectedWall.floorIdx, selectedWall.wallId, selectedWall.from, selectedWall.to));
     }
   }
   exitWorkspaceMode();
@@ -1710,6 +1725,7 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
   fd.append('worker_id', modalWorker.id);
   fd.append('title', title);
   fd.append('description', desc);
+  fd.append('manager_lang', window.LANG === 'he' ? 'he' : 'en');
   const photoReq = document.getElementById('f-photo-req').value.trim();
   if(photoReq) fd.append('photo_requirement', photoReq);
   fd.append('location_mode', modalMode);
@@ -1780,7 +1796,7 @@ function openPlanModal(){
   sel.value = selectedFloorIdx;
   $p('plan-options').style.display = 'none';
   $p('plan-save').disabled = true;
-  setPlanMsg('Upload your CAD file: <b>.dwg</b>, <b>.dxf</b> or a vector <b>.pdf</b> exported from CAD.', false);
+  setPlanMsg('Upload your CAD file (.dwg, .dxf or a vector .pdf exported from CAD).', false);
   refreshPlanFloorUI();
   $p('plan-overlay').classList.add('open');
 }
@@ -1866,7 +1882,7 @@ function renderPlanPreview(){
     $p('plan-save').disabled = true;
     return;
   }
-  setPlanMsg(`Read <b>${escHtml(plan.source.filename)}</b> \u2014 ${escHtml(plan.source.units_note)}.`, false);
+  setPlanMsg(`Read ${escHtml(plan.source.filename)} \u2014 ${escHtml(plan.source.units_note)}.`, false);
   const multi = !!(res.region_plans && res.region_plans.length > 1) && !$p('plan-onefloor').checked;
   renderPlanRegions(multi ? res : null);
   $p('plan-stats').textContent = (multi ? `${res.region_plans.length} floors found in this drawing · ` : '') + `${plan.bounds.w} m \u00d7 ${plan.bounds.d} m \u00b7 ${plan.stats.walls} walls \u00b7 ${plan.stats.total_length_m} m of wall` + (plan.stats.details ? ` \u00b7 ${plan.stats.details} drawing lines` : '');
@@ -2006,7 +2022,7 @@ $p('plan-save').addEventListener('click', async ()=>{
 });
 $p('plan-reset').addEventListener('click', async ()=>{
   const label = planFloorLabel();
-  if(!confirm(`Go back to the generic layout for floor ${label}?`)) return;
+  if(!confirm(tr(`Go back to the generic layout for floor ${label}?`))) return;
   try{
     await fetch(API + '/floorplans/' + encodeURIComponent(label) + '?building_id=' + encodeURIComponent(currentBuildingId || ''), {method:'DELETE'});
     delete serverPlans[label];
@@ -2091,14 +2107,14 @@ function renderTabs(){
   box.appendChild(add);
 }
 async function renameBuilding(b){
-  const n = prompt('Building name', b.name);
+  const n = prompt(tr('Building name'), b.name);
   if(n === null || !n.trim() || n.trim() === b.name) return;
   try{ await jsonFetch('/buildings/' + b.id, {method:'PUT', body: fdOf({name: n.trim()})}); await loadBuildings(); renderTabs(); renderCrew(); }
   catch(e){ toast(e.message); }
 }
 async function deleteBuilding(b){
   const n = workers.filter(w=>w.building_id === b.id).length;
-  if(!confirm(`Delete building "${b.name}"? Its floor plans and steps are removed.` + (n ? ` Its ${n} worker(s) become unassigned (tasks stay).` : ''))) return;
+  if(!confirm(tr(`Delete building "${b.name}"? Its floor plans and steps are removed.` + (n ? ` Its ${n} worker(s) become unassigned (tasks stay).` : '')))) return;
   try{
     await jsonFetch('/buildings/' + b.id, {method:'DELETE'});
     await loadWorkers(); await loadBuildings();
